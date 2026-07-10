@@ -1,0 +1,32 @@
+{
+  "year": "2026",
+  "month": "X月",
+  "theme": "green",
+  "hero_bg_prompt": "Dark emerald green gaming celebration banner background, absolutely no text or letters. A majestic golden trophy cup centered at top. Golden sparkles, light particles, subtle firework bursts scattered around. Deep dark green gradient background. Luxurious prestigious esports award ceremony aesthetic. Wide panoramic composition, cinematic volumetric lighting.",
+  "overlay": {},
+  "footer_note": "榜单基于联想PC全系机型域内启动次数和下载次数，设置权重，综合加权统计。",
+  "top3": [
+    { "rank": 1, "name": "", "developer": "" },
+    { "rank": 2, "name": "", "developer": "" },
+    { "rank": 3, "name": "", "developer": "", "is_new": false }
+  ],
+  "rankings": [
+    { "rank": 4,  "name": "", "developer": "", "trend": null },
+    { "rank": 5,  "name": "", "developer": "", "trend": null },
+    { "rank": 6,  "name": "", "developer": "", "trend": null },
+    { "rank": 7,  "name": "", "developer": "", "trend": null },
+    { "rank": 8,  "name": "", "developer": "", "trend": null },
+    { "rank": 9,  "name": "", "developer": "", "trend": null },
+    { "rank": 10, "name": "", "developer": "", "trend": null },
+    { "rank": 11, "name": "", "developer": "", "trend": null },
+    { "rank": 12, "name": "", "developer": "", "trend": null },
+    { "rank": 13, "name": "", "developer": "", "trend": null },
+    { "rank": 14, "name": "", "developer": "", "trend": null },
+    { "rank": 15, "name": "", "developer": "", "trend": null },
+    { "rank": 16, "name": "", "developer": "", "trend": null },
+    { "rank": 17, "name": "", "developer": "", "trend": null },
+    { "rank": 18, "name": "", "developer": "", "trend": null },
+    { "rank": 19, "name": "", "developer": "", "trend": null },
+    { "rank": 20, "name": "", "developer": "", "trend": null }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "year": "2026",
+  "month": "5月",
+  "theme": "red",
+  "hero_bg": "assets/hero_bg_red.png",
+  "overlay": {
+    "stop1": "rgba(60, 10, 10, 0)",
+    "stop2": "rgba(46, 5, 5, 0.30)",
+    "stop3": "rgba(35, 4, 4, 0.58)",
+    "stop4": "rgba(26, 3, 3, 0.84)",
+    "stop5": "rgba(26, 3, 3, 0.97)"
+  },
+  "footer_note": "榜单基于联想PC应用商店累计下载次数统计。",
+  "top3": [
+    {
+      "rank": 1,
+      "name": "QQ（怀旧版）",
+      "developer": "2.33亿次",
+      "is_new": false,
+      "icon_path": "assets/icons/apps/01_QQ(怀旧版).png"
+    },
+    {
+      "rank": 2,
+      "name": "腾讯视频",
+      "developer": "1.54亿次",
+      "is_new": false,
+      "icon_path": "assets/icons/apps/02_腾讯视频.png"
+    },
+    {
+      "rank": 3,
+      "name": "QQ音乐",
+      "developer": "1.04亿次",
+      "is_new": false,
+      "icon_path": "assets/icons/apps/03_QQ音乐.png"
+    }
+  ],
+  "rankings": [
+    {
+      "rank": 4,
+      "name": "YY语音",
+      "developer": "1275万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/04_YY语音.png"
+    },
+    {
+      "rank": 5,
+      "name": "搜狗五笔输入法",
+      "developer": "670万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/05_搜狗五笔输入法.png"
+    },
+    {
+      "rank": 6,
+      "name": "金山打字通",
+      "developer": "550万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/06_金山打字通.png"
+    },
+    {
+      "rank": 7,
+      "name": "Foxmail",
+      "developer": "534万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/07_Foxmail.png"
+    },
+    {
+      "rank": 8,
+      "name": "Firefox 多功能版",
+      "developer": "189万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/08_Firefox 多功能版.png"
+    },
+    {
+      "rank": 9,
+      "name": "QQ影音",
+      "developer": "165万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/09_QQ影音.png"
+    },
+    {
+      "rank": 10,
+      "name": "QQ拼音输入法",
+      "developer": "111万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/10_QQ拼音输入法.png"
+    },
+    {
+      "rank": 11,
+      "name": "Safari",
+      "developer": "103万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/11_Safari.png"
+    },
+    {
+      "rank": 12,
+      "name": "BitComet（比特彗星）",
+      "developer": "64万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/12_BitComet(比特彗星).png"
+    },
+    {
+      "rank": 13,
+      "name": "QQ五笔输入法",
+      "developer": "63万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/13_QQ五笔输入法.png"
+    },
+    {
+      "rank": 14,
+      "name": "Internet Download Manager",
+      "developer": "48万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/14_Internet Download Manager.png"
+    },
+    {
+      "rank": 15,
+      "name": "KMPlayer",
+      "developer": "32万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/15_KMPlayer.png"
+    },
+    {
+      "rank": 16,
+      "name": "世界之窗浏览器7",
+      "developer": "18万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/16_世界之窗浏览器7.png"
+    },
+    {
+      "rank": 17,
+      "name": "CC直播",
+      "developer": "14万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/17_CC直播.png"
+    },
+    {
+      "rank": 18,
+      "name": "uTorrent",
+      "developer": "14万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/18_uTorrent.png"
+    },
+    {
+      "rank": 19,
+      "name": "Opera浏览器",
+      "developer": "11万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/19_Opera浏览器.png"
+    },
+    {
+      "rank": 20,
+      "name": "FileZilla",
+      "developer": "5万次",
+      "trend": null,
+      "icon_path": "assets/icons/apps/20_FileZilla.png"
+    }
+  ]
+}

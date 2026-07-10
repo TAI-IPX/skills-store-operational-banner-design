@@ -1,0 +1,39 @@
+{
+  "lang": "zh",
+  "html_lang": "zh",
+
+  "logo_text": "▐ LEGION ZONE",
+  "subtitle": "{year}联想天禧生态",
+  "title": "PC游戏{month}TOP榜",
+  "badge_new": "NEW",
+
+  "month_format": "{m}月",
+  "default_month": "X月",
+  "default_footer_note": "榜单基于联想PC全系机型域内启动次数和下载次数，设置权重，综合加权统计。",
+  "output_filename": "{year}-PC游戏{month}TOP榜.jpg",
+
+  "cli": {
+    "generate_complete": "✓ 生成完成: {path}",
+    "usage": "用法: python generate.py <data.json> [输出目录]",
+    "file_not_found": "❌ 文件不存在: {path}",
+    "generating_bg": "🎨 正在生成背景图...",
+    "bg_saved": "✅ 背景图已保存: {path} ({size}KB)",
+    "api_error": "❌ API 错误 ({code}): {message}",
+    "unknown_format": "❌ 未知的返回格式: {keys}",
+    "preview_file": "📄 预览文件: {path}",
+    "title_font": "🔤 标题字体: {name}",
+    "no_api_key": "⚠️  未配置 API_KEY，跳过背景图生成（使用渐变色兜底）",
+    "bg_exists": "✅ 背景图已存在: {path}",
+    "skip_bg": "⏭️  跳过背景图生成",
+    "updated_json": "   已更新 {name} → hero_bg: {path}",
+    "complete": "🎉 完成！最终图片: {path}",
+    "preview_mode": "✅ 预览模式 — 打开 preview.html 查看效果",
+    "banner_title": "  PC游戏{month}TOP榜  |  主题: {theme}",
+    "program_desc": "PC游戏排行榜图片一键生成",
+    "data_file_help": "JSON 数据文件路径",
+    "skip_bg_help": "跳过背景图生成",
+    "preview_help": "只生成 preview.html",
+    "output_help": "输出目录",
+    "lang_help": "输出语言 (zh/en)"
+  }
+}

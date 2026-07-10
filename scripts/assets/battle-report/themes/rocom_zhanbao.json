@@ -1,0 +1,75 @@
+{
+  "theme_id": "rocom_zhanbao",
+  "style_id": "rocom_zhanbao",
+  "style_source": "hero_kv",
+  "source_kv": "/Users/shixiaoning/Desktop/战报/KV.jpg",
+  "description": "由 KV 自动取色生成：KV.jpg",
+  "bg_page": "#111217",
+  "bg_card": "#F2F2F2",
+  "bg_card_dark": "#292A2F",
+  "accent_primary": "#F1D11F",
+  "accent_secondary": "#93C04E",
+  "accent_bright": "#FFB200",
+  "accent_bright_alt": "#237694",
+  "text_primary": "#FFFFFF",
+  "text_secondary": "#FFFFFFCC",
+  "text_on_light": "#333333",
+  "stroke_decor": "#237694B7",
+  "extract_meta": {
+    "accent_candidates": [
+      {
+        "hex": "#F1D11F",
+        "hue": 50.9,
+        "sat": 0.871
+      },
+      {
+        "hex": "#93C04E",
+        "hue": 83.7,
+        "sat": 0.594
+      },
+      {
+        "hex": "#73A952",
+        "hue": 97.2,
+        "sat": 0.515
+      },
+      {
+        "hex": "#BDCE5C",
+        "hue": 68.9,
+        "sat": 0.553
+      },
+      {
+        "hex": "#5D8536",
+        "hue": 90.4,
+        "sat": 0.594
+      },
+      {
+        "hex": "#4E84CC",
+        "hue": 214.3,
+        "sat": 0.618
+      }
+    ],
+    "dark_candidates": [
+      {
+        "hex": "#13151A",
+        "value": 0.102
+      },
+      {
+        "hex": "#14211E",
+        "value": 0.129
+      },
+      {
+        "hex": "#1E3124",
+        "value": 0.192
+      },
+      {
+        "hex": "#2C3E2F",
+        "value": 0.243
+      }
+    ],
+    "warm_accent": {
+      "hex": "#F1D11F",
+      "hue": 50.9,
+      "sat": 0.871
+    }
+  }
+}

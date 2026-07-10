@@ -1,0 +1,158 @@
+{
+  "year": "2026",
+  "month": "6月",
+  "theme": "gold",
+  "hero_bg": "assets/hero_bg_2026_6月.png",
+  "overlay": {
+    "stop1": "rgba(40, 30, 5, 0.15)",
+    "stop2": "rgba(30, 22, 4, 0.45)",
+    "stop3": "rgba(22, 16, 3, 0.70)",
+    "stop4": "rgba(15, 11, 2, 0.90)",
+    "stop5": "rgba(12, 9, 2, 0.98)"
+  },
+  "footer_note": "榜单基于联想PC全系机型域内启动次数和下载次数，设置权重，综合加权统计。",
+  "top3": [
+    {
+      "rank": 1,
+      "name": "无畏契约",
+      "developer": "4,099,656",
+      "is_new": false,
+      "icon_path": "assets/icons/2026-06-gold/01_无畏契约.png"
+    },
+    {
+      "rank": 2,
+      "name": "三角洲行动",
+      "developer": "4,078,004",
+      "is_new": false,
+      "icon_path": "assets/icons/2026-06-gold/02_三角洲行动.png"
+    },
+    {
+      "rank": 3,
+      "name": "CS2",
+      "developer": "2,550,348",
+      "is_new": false,
+      "icon_path": "assets/icons/2026-06-gold/03_CS2.png"
+    }
+  ],
+  "rankings": [
+    {
+      "rank": 4,
+      "name": "英雄联盟",
+      "developer": "腾讯",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/04_英雄联盟.png"
+    },
+    {
+      "rank": 5,
+      "name": "永劫无间",
+      "developer": "网易",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/05_永劫无间.png"
+    },
+    {
+      "rank": 6,
+      "name": "崩坏：星穹铁道",
+      "developer": "米哈游",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/06_崩坏：星穹铁道.png"
+    },
+    {
+      "rank": 7,
+      "name": "鸣潮",
+      "developer": "库洛",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/07_鸣潮.png"
+    },
+    {
+      "rank": 8,
+      "name": "原神",
+      "developer": "米哈游",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/08_原神.png"
+    },
+    {
+      "rank": 9,
+      "name": "绝地求生",
+      "developer": "腾讯",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/09_绝地求生.png"
+    },
+    {
+      "rank": 10,
+      "name": "穿越火线",
+      "developer": "腾讯",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/10_穿越火线.png"
+    },
+    {
+      "rank": 11,
+      "name": "解限机",
+      "developer": "西山居",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/11_解限机.png"
+    },
+    {
+      "rank": 12,
+      "name": "绝区零",
+      "developer": "米哈游",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/12_绝区零.png"
+    },
+    {
+      "rank": 13,
+      "name": "黑神话：悟空",
+      "developer": "游戏科学",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/13_黑神话：悟空.png"
+    },
+    {
+      "rank": 14,
+      "name": "守望先锋",
+      "developer": "网易",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/14_守望先锋.png"
+    },
+    {
+      "rank": 15,
+      "name": "燕云十六声",
+      "developer": "网易",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/15_燕云十六声.png"
+    },
+    {
+      "rank": 16,
+      "name": "星露谷物语",
+      "developer": "ConcernedApe",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/16_星露谷物语.jpg"
+    },
+    {
+      "rank": 17,
+      "name": "和平精英PC模拟器",
+      "developer": "腾讯",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/17_和平精英PC模拟器.png"
+    },
+    {
+      "rank": 18,
+      "name": "双人成行",
+      "developer": "EA",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/18_双人成行.png"
+    },
+    {
+      "rank": 19,
+      "name": "Apex英雄",
+      "developer": "EA",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/19_Apex英雄.png"
+    },
+    {
+      "rank": 20,
+      "name": "暗区突围：无限",
+      "developer": "腾讯",
+      "trend": null,
+      "icon_path": "assets/icons/2026-06-gold/20_暗区突围：无限.png"
+    }
+  ]
+}

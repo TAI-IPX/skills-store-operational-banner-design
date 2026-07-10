@@ -1,0 +1,15 @@
+{
+  "theme_id": "theme_default",
+  "style_id": "theme_default",
+  "style_source": "hero_kv",
+  "description": "色值由参考 KV 归纳；换 KV 须同步更新 styles/theme_default.json",
+  "bg_page": "#121214",
+  "bg_card": "#F2F2F2",
+  "bg_card_dark": "#2A2A2E",
+  "accent_primary": "#FF2D9A",
+  "accent_secondary": "#00E5FF",
+  "text_primary": "#FFFFFF",
+  "text_secondary": "#FFFFFFCC",
+  "text_on_light": "#333333",
+  "stroke_decor": "#00E5FF99"
+}

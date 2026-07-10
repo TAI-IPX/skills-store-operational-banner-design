@@ -1,0 +1,20 @@
+{
+  "style_id": "theme_default",
+  "style_source": "hero_kv",
+  "description": "由《异环》× 联想参考 KV 归纳；换 KV 时请整文件替换，勿只改色不改装饰语言",
+  "mood": ["cyberpunk", "anime", "high_energy", "collab_launch"],
+  "color_temperature": "cool_with_warm_accent",
+  "contrast": "high",
+  "line_language": "sharp_geometric",
+  "ornament_set": ["glitch", "tech_cross", "neon_rim", "scanline", "drone_silhouette"],
+  "ornament_avoid": ["corporate_flat_icons", "literal_battery", "unrelated_stock_tech"],
+  "lighting": "rim_light_neon_glow",
+  "surface": "dark_glass_matte_panel",
+  "mockup_chrome": "dark_client_ui",
+  "density": "medium_high",
+  "section_header": {
+    "title_box": "parallelogram_slant",
+    "stroke": "dual_accent_offset_shadow",
+    "character": "game_key_art_same_franchise_as_kv"
+  }
+}

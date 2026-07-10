@@ -1,0 +1,35 @@
+使用您上传的图片跑完整流程
+========================
+
+【对话框上传直接使用】
+  顺序约定：第 1 张 = 背景图（banner 底图），第 2 张 = logo 图（贴到带 logo_rect 的预设）。只传一张则仅作背景，不贴 logo。
+  在 Cursor 对话框里上传图片后，把路径告诉助手，或自己执行：
+  · 只背景：python scripts/set_upload_image.py "背景图路径"
+  · 背景+logo：python scripts/set_upload_image.py "背景图路径" "logo图路径"
+  然后运行：python scripts/run_all_presets.py @ -g "商店日常" -m "主标题" -s "副标题"
+  传 @ 表示从本目录 upload_path.txt 读取：第 1 行背景，第 2 行（可选）logo。
+
+【本地图片】
+1. 将您上传的图片复制到本 input 文件夹内
+2. 把图片命名为：source.png（或 source.jpg）
+   （不命名也可以，把本目录下只放这一张图即可，程序会用第一张）
+
+3. 运行方式任选其一：
+
+  方式 A：双击项目根目录下的
+         「运行全流程（使用input内图片）.bat」
+    会使用 主标题：开学回血补给站 / 副标题：升级学习力 轻松新学期
+
+  方式 B：在项目根目录打开命令行，执行：
+         python scripts/run_all_presets.py -m "主标题" -s "副标题"
+    不写图片路径时自动使用 input/source.png 或本目录下第一个图片。
+
+【无图：主副标题 → 即梦文生图/图生图 → 商店日常】
+  运行：python scripts/run_商店日常_jimeng_开学回血.py
+  主标题/副标题在脚本内已设为「开学回血补给站」「升级学习力 轻松新学期」，-g 商店日常。
+  若将参考图存为本目录 ref.png，则自动走即梦图生图(i2i)；不存则走文生图(t2i)。
+
+【-g 开放平台 默认参考图】
+  使用 run_full_with_custom_prompt.py 且 -g 开放平台 时，若未传 --ref，会自动使用本目录下的
+  open_platform_style_ref.png 作为 Step 1 图生图参考（若文件存在）。请将一张开放平台风格的
+  Banner 图复制到 input 并命名为 open_platform_style_ref.png，生成的背景风格会更接近参考图。

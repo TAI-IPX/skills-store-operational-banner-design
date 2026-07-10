@@ -1,0 +1,50 @@
+{
+  "year": "2026",
+  "month": "4月",
+  "theme": "green",
+  "hero_bg": "assets/hero_bg.png",
+  "footer_note": "榜单基于联想PC全系机型域内启动次数和下载次数，设置权重，综合加权统计。",
+  "top3": [
+    {
+      "rank": 1,
+      "name": "无畏契约",
+      "developer": "腾讯",
+      "icon_path": null,
+      "is_new": false
+    },
+    {
+      "rank": 2,
+      "name": "三角洲行动",
+      "developer": "腾讯",
+      "icon_path": null,
+      "is_new": false
+    },
+    {
+      "rank": 3,
+      "name": "英雄联盟",
+      "developer": "腾讯",
+      "icon_path": null,
+      "is_new": false,
+      "trend": "up1"
+    }
+  ],
+  "rankings": [
+    { "rank": 4,  "name": "洛克王国：世界",   "developer": "腾讯",               "trend": "down1" },
+    { "rank": 5,  "name": "CS2",              "developer": "Valve Corporation",  "trend": null   },
+    { "rank": 6,  "name": "异环",             "developer": "完美世界",            "trend": "new"  },
+    { "rank": 7,  "name": "绝地求生",          "developer": "Krafton",            "trend": "down1" },
+    { "rank": 8,  "name": "崩坏：星穹铁道",    "developer": "米哈游",              "trend": "up2"  },
+    { "rank": 9,  "name": "鸣潮",             "developer": "库洛游戏",            "trend": "down1" },
+    { "rank": 10, "name": "原神",             "developer": "米哈游",              "trend": "down1" },
+    { "rank": 11, "name": "永劫无间",          "developer": "网易",               "trend": "down4" },
+    { "rank": 12, "name": "杀戮尖塔2",        "developer": "Mega Crit",          "trend": "down1" },
+    { "rank": 13, "name": "穿越火线",          "developer": "腾讯",               "trend": null   },
+    { "rank": 14, "name": "王者荣耀世界",      "developer": "腾讯",               "trend": "new"  },
+    { "rank": 15, "name": "明日方舟：终末地",  "developer": "鹰角",               "trend": "down3" },
+    { "rank": 16, "name": "植物大战僵尸年度版","developer": "PopCap Games, Inc.", "trend": "up2"  },
+    { "rank": 17, "name": "Apex英雄",         "developer": "Electronic Arts",    "trend": "down1" },
+    { "rank": 18, "name": "绝区零",           "developer": "米哈游",              "trend": "down1" },
+    { "rank": 19, "name": "守望先锋",          "developer": "网易",               "trend": null   },
+    { "rank": 20, "name": "燕云十六声",        "developer": "网易",               "trend": "down5" }
+  ]
+}

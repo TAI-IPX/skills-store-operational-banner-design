@@ -1,0 +1,14 @@
+{
+  "style_id": "rocom_zhanbao",
+  "source": "https://rocom.qq.com/main/index.html + hero_kv",
+  "mood": ["fantasy", "anime", "magic_academy", "whimsical"],
+  "color_temperature": "cool_with_warm_grass_accent",
+  "contrast": "medium_high",
+  "line_language": "soft_organic",
+  "ornament_set": ["soft_glow", "grass_motif", "sky_rim", "rounded_panel"],
+  "ornament_avoid": ["cyber_glitch", "corporate_flat", "literal_ui_battery"],
+  "lighting": "rim_light",
+  "surface": "matte_panel",
+  "mockup_chrome": "bright_game_ui",
+  "density": "medium"
+}

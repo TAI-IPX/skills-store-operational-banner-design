@@ -1,0 +1,8 @@
+{
+  "活动1": {
+    "layout": "input/templates/活动1/layout.png",
+    "width": 2172,
+    "height": 724,
+    "description": "三角色交叠并排 (AI输出~2:1, S2b缩放精确控制人物占比)"
+  }
+}

@@ -1,0 +1,5 @@
+Pillow>=10.0.0
+
+# 商店专题长图 3320×500 顶部条带 BiRefNet 抠图（可选）
+# 项目根: pip install -e ".[birefnet]"
+# Windows: scripts/install_birefnet_deps.bat

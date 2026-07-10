@@ -1,0 +1,4 @@
+# No extra deps in this skill: Gemini is called via HTTP; crop is done by
+# banner-background-from-image/scripts/crop_to_target.py (which needs Pillow).
+# If you run crop_to_target.py from this repo, install that skill's requirements:
+# pip install -r ../banner-background-from-image/scripts/requirements.txt

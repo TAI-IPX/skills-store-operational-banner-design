@@ -1,0 +1,39 @@
+{
+  "lang": "en",
+  "html_lang": "en",
+
+  "logo_text": "▐ LEGION ZONE",
+  "subtitle": "{year} Lenovo Tianxi Ecosystem",
+  "title": "PC Games {month} TOP Charts",
+  "badge_new": "NEW",
+
+  "month_format": "{m}",
+  "default_month": "Month",
+  "default_footer_note": "Rankings are based on launch frequency and download counts across all Lenovo PC models, with weighted comprehensive statistics.",
+  "output_filename": "{year}-PC_Games_{month}_TOP_Charts.jpg",
+
+  "cli": {
+    "generate_complete": "✓ Generated: {path}",
+    "usage": "Usage: python generate.py <data.json> [output_dir]",
+    "file_not_found": "❌ File not found: {path}",
+    "generating_bg": "🎨 Generating background image...",
+    "bg_saved": "✅ Background saved: {path} ({size}KB)",
+    "api_error": "❌ API error ({code}): {message}",
+    "unknown_format": "❌ Unknown response format: {keys}",
+    "preview_file": "📄 Preview file: {path}",
+    "title_font": "🔤 Title font: {name}",
+    "no_api_key": "⚠️  API_KEY not set, skipping background generation (using CSS gradient fallback)",
+    "bg_exists": "✅ Background already exists: {path}",
+    "skip_bg": "⏭️  Skipping background generation",
+    "updated_json": "   Updated {name} → hero_bg: {path}",
+    "complete": "🎉 Done! Final image: {path}",
+    "preview_mode": "✅ Preview mode — open preview.html to check",
+    "banner_title": "  PC Games {month} TOP Charts  |  Theme: {theme}",
+    "program_desc": "PC Game Ranking Chart Generator",
+    "data_file_help": "JSON data file path",
+    "skip_bg_help": "Skip background image generation",
+    "preview_help": "Generate preview.html only",
+    "output_help": "Output directory",
+    "lang_help": "Output language (zh/en)"
+  }
+}
