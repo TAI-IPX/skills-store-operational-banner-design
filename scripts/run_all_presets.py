@@ -219,7 +219,7 @@ def main():
     if getattr(args, "moxingemini", False) and not getattr(args, "packy7s", False) and not getattr(args, "moxingpt", False):
         env["GOOGLE_GEMINI_BASE_URL"] = os.environ.get("MOXINGEMINI_BASE_URL", "https://www.moxin.studio").strip()
         env["GEMINI_API_KEY"] = os.environ.get("MOXINGEMINI_API_KEY", "")
-        env.setdefault("GEMINI_MODEL", env.get("MOXINGEMINI_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image-preview"))
+        env.setdefault("GEMINI_MODEL", env.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image"))
         env.setdefault("GEMINI_VISION_MODEL", env.get("MOXINGEMINI_VISION_MODEL", "[特价次卡]gemini-3.1-pro-preview,[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-2.5-pro"))
         env["BANNER_IMAGE_BACKEND"] = "gemini"
     if getattr(args, "xingchengemini1", False) and not getattr(args, "packy7s", False) and not getattr(args, "xingchengpt", False):

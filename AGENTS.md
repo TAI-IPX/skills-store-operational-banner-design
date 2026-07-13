@@ -30,7 +30,7 @@
 - **MicuAPI (gpt-image-2 / Gemini)**：`MICUAPI_API_KEY` / `MICUGEMINI_API_KEY`。生图/编辑走 micuapi.ai。
 - **即梦 / 火山**：`VOLC_ACCESS_KEY_ID`、`VOLC_SECRET_ACCESS_KEY`。
 - **Lovart**：`LOVART_ACCESS_KEY` + `LOVART_SECRET_KEY`。
-- **BiRefNet 抠图**：`BIREFNET_ALPHA_THRESHOLD`（`extract_subject_birefnet.py` 独立抠图用，代码实际默认 0.7；`.env.example` 注释写的 0.6 已过时，以代码为准）、`WIDE_A5B_ALPHA_THRESHOLD`（专题长图 A5b 顶条抠图专用，默认 0.6）、`HF_HUB_OFFLINE`。
+- **BiRefNet 抠图**：`BIREFNET_ALPHA_THRESHOLD`（`extract_subject_birefnet.py` 独立抠图用，代码实际默认 0.7；`.env.example` 注释写的 0.6 已过时，以代码为准）、`WIDE_A5B_ALPHA_THRESHOLD`（专题长图 A5b 顶条抠图专用，默认 0.5）、`WIDE_A5B_MIN_COMPONENT_AREA`（A5b 碎屑过滤面积，默认 3000）、`HF_HUB_OFFLINE`。
 - **可选 Anthropic**：`ANTHROPIC_API_KEY`（`--prompt-engine-claude` 用）。
 - **其他生图/编辑后端**：`.env.example` 中还注册了 moxingpt/moxingemini、xingchengpt/xinchengpt/xingchengemini（+`XINGCHENGEMINI1_API_KEY` 轮换）等更多后端 Key，完整列表与能力矩阵以 `scripts/_backends.py` 为唯一权威数据源，不在此逐一列出。
 
@@ -110,7 +110,7 @@ py scripts/ensure_python.py
 ## BiRefNet 抠图（专题长图 3320 顶条 / 独立抠主体）
 
 - **依赖**：项目根执行 `pip install -e ".[birefnet]"`，或 Windows 运行 `scripts/install_birefnet_deps.bat`；首次会从 HuggingFace 拉取 `ZhengPeng7/BiRefNet-matting`。
-- **专题长图 A5b**：`run_all_presets` 的 Step 1b（`wide_from-fill`）会优先走 BiRefNet，失败再回退 Gemini。若希望**只用 BiRefNet、失败即报错**：在 `.env` 或环境中设置 `WIDE_A5B_NO_GEMINI_FALLBACK=1`。顶条边缘可调软：`WIDE_A5B_ALPHA_THRESHOLD=0.45`（0～1，默认 0.6）。
+- **专题长图 A5b**：`run_all_presets` 的 Step 1b（`wide_from-fill`）会优先走 BiRefNet，失败再回退 Gemini。	若希望**只用 BiRefNet、失败即报错**：在 `.env` 或环境中设置 `WIDE_A5B_NO_GEMINI_FALLBACK=1`。顶条边缘可调软：`WIDE_A5B_ALPHA_THRESHOLD=0.4`（0～1，默认 0.5）。
 - **整图或区域抠 PNG**：  `py scripts/extract_subject_birefnet.py <图路径> --output output/subject_rgba.png`；人物发丝可加 `--no-binarize`；可先 `--crop x1 y1 x2 y2` 再抠。
 
 ## 在 Cursor 里使用
@@ -630,6 +630,21 @@ mask[body, 3] = 255
 
 ## Changelog
 
+### 2026-07-10 — moxingpt 图编端点失效 → 编辑委托 moxingemini（全项目修复）
+
+**问题**：`--moxingpt` 生图（t2i，`/v1/images/generations`）正常，但 moxin.studio 的 `/v1/chat/completions` 图编端点已挂（403 Forbidden / 404 No endpoint）。`prepare_background.py` 的 S5 填充、S6 修复、strip、direct-to-canvas、A4 两处共 6 个内部调用点直接硬调 `_moxingpt_edit_image`（死端点），绕过了 `edit_image()` 里已有的正确路由（moxingpt+MOXINGEMINI → `_edit_image_moxingemini`），导致 Step2 编辑全线失败。单独 `--moxingemini` 又会让 backend=gemini 走原生 generateContent，中文模型名 `[次]gemini...` 触发 ascii URL 编码崩溃。
+
+**改动**：
+
+| # | 文件 | 内容 |
+|---|------|------|
+| 1 | `.claude/skills/banner-background-from-image/scripts/prepare_background.py` | `_moxingpt_edit_image` 入口新增委托：检测到 `MOXINGEMINI_API_KEY`（sk- 开头）时，编辑转交 `gemini_image_edit._edit_image_moxingemini`（Gemini 系，chat/completions 图编可用），打印 `[moxingpt edit] moxin.studio 图编端点不可用，委托 moxingemini`。一处覆盖 6 个内部硬调用点；`run_all_presets.py` / `run_mobile_presets.py` 因导入同一函数自动受益 |
+| 2 | `.claude/skills/banner-background-from-description/scripts/generate_from_description.py` | `_generate_image_moxingpt` 的 i2i 分支同步委托：有 `MOXINGEMINI_API_KEY` 时用 `_edit_image_moxingemini` 做图生图，替代死的 `chat_completions_image`（`/v1/chat/completions`） |
+
+**用法（重要）**：moxingpt 生图必须搭配 `--moxingpt --moxingemini`（moxingpt 出图、moxingemini 编辑）。单独 `--moxingpt` 的编辑步骤会因端点失效而失败。
+
+**验证**：`商店移动端banner 984*442` 端到端跑通——bg.png（moxingpt t2i）+ Step0a 去干扰 + S5 填充 + S6 修复全部委托 moxingemini 成功出图（think 模型返回文本时自动顺延到 `[次]gemini-3.1-flash-image-preview` 出图），产出 984×442 banner。
+
 ### 2026-07-09 — 专题长图 wide 自动探顶（主体探不进 40px 白条 → BiRefNet 测顶行自动上移）
 
 **问题**：专题长图顶部 40px 白条空白——主体真实顶部在 y≈50-55（bbox `y_min` 比真实主体顶低 + fit 到安全区 90% 后顶部落在 y≈25-55），够不到 y=0-40 白条 → A5b 抠图区无前景可探入，白条纯白。手调 `WIDE_TOP_EXTEND_PX` 因 API 两侧填充每次主体位置略变而不稳。
@@ -742,8 +757,8 @@ mask[body, 3] = 255
 | 7 | `gemini_image_edit.py` `_edit_image_moxingemini` | 委托到 `_chat_completions_edit_image`，`MOXINGEMINI_MODEL` 支持逗号分隔 3 模型（默认含非 think 模型兜底，避免 think 模型返回文本无效） |
 | 8 | `gemini_image_edit.py` `_edit_image_xingchengemini` | 委托到通用函数，新增 `XINGCHENGEMINI_MODEL` 环境变量（向后兼容：未设时回退到原硬编码值 `gemini-3.1-flash-image-preview`） |
 | 9 | `gemini_image_edit.py` `_edit_image_micugemini` | 委托到通用函数，新增 `MICUGEMINI_MODEL` 环境变量（向后兼容：未设时回退到 `gemini-3-pro-image-preview`） |
-| 10 | `prepare_background.py` `_moxingpt_edit_image` | gpt-image-2 类编辑多模型重试：`MOXINGPT_MODEL` 逗号分隔最多 3 个，按序重试，默认 `gpt-image-2,gpt-image-2-base64` |
-| 11 | `.env.example` | `MOXINGEMINI_MODEL` 示例改为逗号分隔 3 模型格式；`MOXINGPT_MODEL` 示例追加 `gpt-image-2-base64` 第二候选 |
+| 10 | `prepare_background.py` `_moxingpt_edit_image` | gpt-image-2 类编辑多模型重试：`MOXINGPT_MODEL` 逗号分隔最多 3 个，按序重试，默认 `[次]gpt-image-2,gpt-image-2-c` |
+| 11 | `.env.example` | `MOXINGEMINI_MODEL` 示例改为逗号分隔多模型格式（无 think 模型）；`MOXINGPT_MODEL` 示例改为 `[次]gpt-image-2,gpt-image-2-c` |
 
 ### 2026-06-30 — HD 管线 Mask + 透明 PNG 铁律落地
 
@@ -912,7 +927,7 @@ bg.png → A4(composite + API fill) → tianchong.png (2048×512) → wide_from_
 1. **裁切区推理（核心修复）**：BiRefNet 改在裁切上下文区（x=1032-2464、y=0-`WIDE_A5B_CONTEXT_H`）上跑并 **pad 成方形** 再推理，不再对整张 6.6:1 画布推理（旧法被压成 1024² → 失真 → alpha 全 0 → 白条空白）。
 2. **Gemini 语义 keep-mask**（`WIDE_A5B_SEMANTIC=1` 默认开）：`detect_foreground_objects_bboxes` 列出所有真实前景物体/角色框（排除天空/墙/地面等环境 + 粒子/光斑/漂浮装饰），构建 keep-mask 与 matte 相交，框外一律剔除。
 3. **连通域去碎屑**（cv2）：丢弃面积 < `WIDE_A5B_MIN_COMPONENT_AREA` 的前景块（清理装饰粒子）。
-4. **软阈值**：`WIDE_A5B_ALPHA_THRESHOLD` 默认降到 0.4；`WIDE_A5B_NO_BINARIZE=1` 保留柔和边缘。
+4. **软阈值**：`WIDE_A5B_ALPHA_THRESHOLD` 默认 0.5；`WIDE_A5B_NO_BINARIZE=1` 保留柔和边缘。
 5. **兜底链**：Gemini 检测失败/无框 → 纯 BiRefNet；BiRefNet 失败 → `_composite_wide_top_strip` Gemini 伸入；`WIDE_A5B_NO_GEMINI_FALLBACK=1` 失败即报错。
 
 **垂直对齐方向**（易混淆）：y=0 在画布顶部。top 增大 → 裁剪窗口下移 → 主体在画布中上移。
@@ -942,10 +957,10 @@ bg.png → A4(composite + API fill) → tianchong.png (2048×512) → wide_from_
 | `WIDE_TOP_EXTEND_PX` | 0 | 正值=主体上移伸入顶部白条 y=0-40（fit 重写后回归微调，通常 20~30 即可）；**显式设置后禁用自动探顶** |
 | `WIDE_AUTO_TOP_POKE` | 1 | A5b 前自动探测主体顶行并上移使其探入白条（`WIDE_TOP_EXTEND_PX` 未设/为0 时生效）；设 0 关闭 |
 | `WIDE_TOP_POKE_TARGET` | 12 | 自动探顶目标：主体顶行上移到白条内约此像素处（越小越贴顶，上移量封顶 120px）|
-| `WIDE_A5B_ALPHA_THRESHOLD` | 0.4 | BiRefNet 顶条抠图 alpha 阈值（裁切区推理修复后可用较软阈值） |
+| `WIDE_A5B_ALPHA_THRESHOLD` | 0.5 | BiRefNet 顶条抠图 alpha 阈值（更保守的二值化，减少边缘杂色） |
 | `WIDE_A5B_SEMANTIC` | 1 | Gemini 前景物体 keep-mask（剔除环境/装饰）；设 0 退回纯 BiRefNet |
 | `WIDE_A5B_CONTEXT_H` | 400 | A5b 抠图/检测上下文源区高度（更高利于识别前景，仅贴回最上 40px） |
-| `WIDE_A5B_MIN_COMPONENT_AREA` | 1200 | 去装饰碎屑的连通域最小面积（像素）；设 0 关闭 |
+| `WIDE_A5B_MIN_COMPONENT_AREA` | 3000 | 去装饰碎屑的连通域最小面积（像素）；游戏特效碎片通常 <3000px²；设 0 关闭 |
 | `WIDE_A5B_NO_BINARIZE` | 0 | 设 1 时保留柔和 alpha 边缘（不二值化） |
 | `WIDE_A5B_NO_GEMINI_FALLBACK` | 0 | 设 1 时 BiRefNet 失败不回退 Gemini |
 | `SENTINEL_RESIDUE_WARN_PCT` | 0.02 | sentinel 残留告警阈值（占总像素 H*W 比例），超过即打印 `SENTINEL_WARN` |
@@ -956,6 +971,8 @@ bg.png → A4(composite + API fill) → tianchong.png (2048×512) → wide_from_
 |------|--------|------|
 | 画面压扁 | `_moxingpt_edit_image` 日志 | `resize((W,H))` 直接拉伸，应改 cover-scale + center-crop |
 | 主体溢出安全区（只露中段/四边超框）| wide 日志 fit-scale + BODY 位置 | **旧 cover+overscan 把主体撑到 >画布**（scale≈2.25）。已改 fit-to-safe-zone；仍溢出则调低 `WIDE_FIT_RATIO` 或放宽 bbox（L4）|
+| 主体溢出安全区（满高主体）| wide 日志 `fit 1600×500` / `fit_scale=0.833` | **fit 保底行 bug**（2026-07-10 修复）：`bbox_h_norm>=0.85` 时保底 `max(fit_scale, target_h/ih)` 把主体重新撑出安全区。表现：`shared_subject_bbox.txt` 类似 `0.33,0.0,1.0,1.0`（y 跨度=1）且日志 scaled 高=满画布高（500）。修：已加 `bbox_h_norm<0.85` 条件 |
+| 主体溢出安全区（退化守卫被吞掉）| wide 日志无 `refined` / `沿用原 bbox` 后有 `gbk codec` 字样 | **print emoji 崩溃 bug**（2026-07-10 修复）：`_wide_refine_bbox_if_suspicious` 内 `⚠` print 在 GBK 控制台崩溃，被 except 捕获后返回原坏 bbox。已改 `_safe_print` + 双路收紧（背景差异法 + BiRefNet 并集）|
 | 主体轻微溢出左/右 | BODY x < 1470 或 > 2464 | bbox 太紧（未含伸出的手臂等），fit 后真实主体比 bbox 宽 → 放宽 `tianchong_bbox.txt` 或降 `WIDE_FIT_RATIO` |
 | 两侧背景横向拉丝/条纹 | wide 日志 `edge-pad L.. R..` | 两侧走了 edge-pad 拉伸（边列复制）。①`WIDE_SIDE_FILL_API=0` 被显式关；②API 填充失败自动回退 edge-pad（多为 moxin.studio 403 / sentinel 残留 >2%）。修：确认后端图编可用（D4）|
 | edge-pad 处出现重复主体/镜像 | wide 右侧/左侧 | 误用 `mode="reflect"`，pad 宽超过背景边距会把主体镜像出来。**必须 `mode="edge"`**（L3）|
@@ -965,7 +982,10 @@ bg.png → A4(composite + API fill) → tianchong.png (2048×512) → wide_from_
 | sentinel 蓝色残留 | tianchong.png | A4 API 失败无兜底；`SENTINEL_WARN` 超阈值；重跑 A4 |
 | 主体偏移/鬼影 | wide 有多次 API 调用 | gpt-image-2 chat/completions 不尊重 mask，重绘主体 |
 | 模型 403/503 | Error 日志 | 403=token 对该模型名无权（moxin.studio 图编须用 `[白嫖]` 前缀，非 `[特价参考]`/裸名；`/v1/models` 查真实名）；503=渠道临时下线，换模型名 |
+| moxingpt 编辑 403/404 (chat/completions) | Step S5/S6 日志 | moxin.studio gpt-image-2 只支持 t2i，图编端点已挂。必须搭 `--moxingpt --moxingemini`，编辑自动委托 moxingemini（2026-07-10 修复，`_moxingpt_edit_image` 入口委托）|
+| 单 `--moxingemini` 时 ascii 崩溃 | `'ascii' codec can't encode` | backend=gemini 走原生 generateContent，中文模型名 `[次]gemini` 无法进 URL。改用 `--moxingpt --moxingemini` 组合（走 chat/completions）|
 | 中文模型名 URL 报错 | `'ascii' codec can't encode` | Gemini 原生 URL 需 `quote()`，或改用 chat/completions |
+| 直接调用 wide_from_fill 时 ascii 崩溃 | `'ascii' codec can't encode character '\u6b21'` | 未通过 `run_all_presets.py` 入口，BANNER_IMAGE_BACKEND 被设为 `gemini`（默认），走原生 generateContent URL，中文模型名 `[次]` 无法编码。必须（1）设置 `BANNER_IMAGE_BACKEND=moxingpt` 让编辑走 chat/completions（JSON body 无编码限制）；（2）同时设置 `GEMINI_API_KEY` + `GOOGLE_GEMINI_BASE_URL` 为 moxingemini 凭证。或者直接走 `run_all_presets.py --moxingpt --moxingemini` 入口（自动完成以上两步）|
 | `GEMINI_MODEL` 未生效 | 日志显示错误模型 | `.env` 有旧值覆盖了 `setdefault`，删掉或改用专属变量 |
 
 ### 核心教训（2026-07-09 会话，调试专题长图白条踩坑全记录）

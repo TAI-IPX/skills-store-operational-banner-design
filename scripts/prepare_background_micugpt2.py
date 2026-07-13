@@ -94,14 +94,14 @@ MICUGPT2_A6B_REPAIR_PROMPT = (
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _wide_a5b_alpha_threshold() -> float:
-    """3320×500 A5b BiRefNet 条带 alpha 阈值，默认 0.4；可用 WIDE_A5B_ALPHA_THRESHOLD 覆盖。"""
+    """3320×500 A5b BiRefNet 条带 alpha 阈值，默认 0.5（更保守的二值化，减少边缘杂色）；可用 WIDE_A5B_ALPHA_THRESHOLD 覆盖。"""
     raw = os.environ.get("WIDE_A5B_ALPHA_THRESHOLD", "").strip()
     if not raw:
-        return 0.4
+        return 0.5
     try:
         return max(0.0, min(1.0, float(raw)))
     except ValueError:
-        return 0.4
+        return 0.5
 
 
 def _wide_a5b_context_h() -> int:
@@ -115,13 +115,14 @@ def _wide_a5b_context_h() -> int:
 
 
 def _wide_a5b_min_component_area() -> int:
+    """A5b 去装饰碎屑的连通域最小面积（像素），默认 3000；设 0 关闭过滤。"""
     raw = os.environ.get("WIDE_A5B_MIN_COMPONENT_AREA", "").strip()
     if not raw:
-        return 1200
+        return 3000
     try:
         return max(0, int(float(raw)))
     except ValueError:
-        return 1200
+        return 3000
 
 
 def _wide_a5b_semantic_enabled() -> bool:
@@ -457,6 +458,17 @@ def _wide_fill_sides_via_api_micugpt2(img_scaled, paste_x: int, paste_y: int, ta
                     pass
 
 
+def _safe_print_m(msg: str) -> None:
+    """Windows GBK 控制台安全 print（micugpt2 孪生文件专用）。"""
+    try:
+        print(msg, flush=True)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            print(msg.encode("gbk", errors="replace").decode("gbk"), flush=True)
+        except Exception:
+            pass
+
+
 def wide_from_fill_micugpt2(fill_image_path: str, output_path: str, bbox_file: str | None = None) -> None:
     """
     纯像素级 fit-to-safe-zone + edge-pad → A5b（与 prepare_background.py:wide_from_fill 同步，已验证）。
@@ -508,7 +520,7 @@ def wide_from_fill_micugpt2(fill_image_path: str, output_path: str, bbox_file: s
         fit_scale = cover_scale
         anchor_x_norm, anchor_y_norm = 0.5, 0.5
         align_cx, align_cy = target_w / 2.0, target_h / 2.0
-        print(f"  wide_from_fill_micugpt2: ⚠ 退化 bbox {bbox}（检测失败？）→ 回退 cover 填充 + 图心对齐", flush=True)
+        _safe_print_m(f"  wide_from_fill_micugpt2: [!] degenerate bbox {bbox} -> fallback cover + image-center align")
     else:
         scale_h = safe_h * fit_ratio / max(1e-6, bbox_h_norm * ih)
         scale_w = safe_w * fit_ratio / max(1e-6, bbox_w_norm * iw)
@@ -516,7 +528,10 @@ def wide_from_fill_micugpt2(fill_image_path: str, output_path: str, bbox_file: s
         bbox_w_s = bbox_w_norm * iw * fit_scale
         if bbox_w_s > safe_w * fit_ratio:
             fit_scale = scale_w
-        fit_scale = max(fit_scale, target_h / ih)
+        # 保底：bbox 纵跨度<0.85 时才套 max(fit_scale, target_h/ih)，
+        # 满高 bbox 不套保底（避免把主体重新撑出安全区）。
+        if bbox_h_norm < 0.85:
+            fit_scale = max(fit_scale, target_h / ih)
         anchor_x_norm, anchor_y_norm = (x_min + x_max) / 2, (y_min + y_max) / 2
         align_cx, align_cy = safe_cx, safe_cy
 

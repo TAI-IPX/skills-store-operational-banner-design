@@ -52,6 +52,11 @@ DEFINITION OF MAIN SUBJECT:
 (1) If the image contains a visible person or character (human, cartoon character, creature with a face, etc.), the main subject MUST be that person or character — the one that is largest and most in the foreground. The bounding box MUST fully enclose the whole figure: head (including hair, hair buns, head accessories), both hands (including fingers and fingertips), and key visual features (e.g. shoulder armor, ribbons, ornaments). Do not cut off the head, fingertips, or prominent accessories; allow a small margin. The box must cover the entire figure (full body or at least head, torso, and main limbs); do NOT return a box that only contains a hand, arm, or face alone.
 (2) If there is NO person or character, the main subject is the single most prominent SCENE or OBJECT GROUP — the one that is largest in scale, most in the foreground, and occupies the most space. Examples: a central island with plants and tools, a table with products, a vehicle with its cargo, a building facade, or any cohesive foreground cluster (e.g. tree seedling + soil mound + watering can + shovel + seed bag on one platform). The box must enclose this ENTIRE visual center or foreground group as one unit; do NOT choose only one small object (e.g. a single flower or one tool) when a larger, coherent group is present. Prefer a box that fits the main scene/group tightly with minimal extra background.
 
+IMPORTANT — Return a GENEROUS bounding box, not a tight crop:
+- Expand each edge by at least 10–15% beyond the visible outline of the subject.
+- The box must include weapons, extended arms, hair, tails, wings, particle trails, and any part of the figure that extends beyond the core torso.
+- It is better to include extra background than to accidentally clip part of the subject.
+
 Reply with the bounding box as four numbers between 0 and 1, in order: x_min, y_min, x_max, y_max. x_min = left edge, x_max = right edge; y_min = top edge, y_max = bottom edge. Example: 0.2 0.1 0.8 0.9 means the subject spans from 20% to 80% horizontally and 10% to 90% vertically.
 
 Output only these four numbers separated by spaces or commas, no other text."""
@@ -1178,6 +1183,10 @@ def detect_protrusion_bbox(image_path: str) -> tuple[float, float, float, float]
 FOREGROUND_OBJECTS_PROMPT = """This image is a horizontal strip cropped from the TOP area of a banner. It may contain one or more FOREGROUND objects/characters (e.g. people, characters, products, physical props/items) placed in front of a background.
 
 List the bounding boxes of ALL clear FOREGROUND objects/characters — the real, solid subjects a viewer would treat as the main content.
+
+For game promotional images or illustrations with characters:
+- INCLUDE: the character's full body, face, clothing, armor, weapons, shields, held items, and physical props directly attached to or held by the character.
+- EXCLUDE: particle effects, sparkles, glows, light beams, energy auras, smoke, fire, floating runes/symbols, even if visually close to the character. These are decorative atmosphere, not the physical body.
 
 STRICTLY EXCLUDE (do NOT list):
 - Environment/background: sky, walls, floor, ground, ceiling, backdrops, plain color or gradient fills, ambient lighting.

@@ -56,14 +56,14 @@ def _has_image_edit_key() -> bool:
 
 
 def _wide_a5b_alpha_threshold() -> float:
-    """3320×500 A5b BiRefNet 条带 alpha 阈值，默认 0.4（裁切区推理已修复失真，可用较软阈值多留前景）；可用 WIDE_A5B_ALPHA_THRESHOLD 覆盖。"""
+    """3320×500 A5b BiRefNet 条带 alpha 阈值，默认 0.5（更保守的二值化，减少边缘杂色）；可用 WIDE_A5B_ALPHA_THRESHOLD 覆盖。"""
     raw = os.environ.get("WIDE_A5B_ALPHA_THRESHOLD", "").strip()
     if not raw:
-        return 0.4
+        return 0.5
     try:
         return max(0.0, min(1.0, float(raw)))
     except ValueError:
-        return 0.4
+        return 0.5
 
 
 def _wide_a5b_no_gemini_fallback() -> bool:
@@ -374,11 +374,26 @@ def _moxingpt_edit_image(
     MoxinGPT 图编：通过 moxin.studio /v1/chat/completions 编辑图片，多模型按序重试（MOXINGPT_MODEL 逗号分隔，最多3个）。
     需 MOXINGPT_API_KEY，触发条件：BANNER_IMAGE_BACKEND=moxingpt。
     mask_path: RGBA PNG，透明=可编辑区域，不透明=需保护的主体区域。
+
+    注意：moxin.studio 的 gpt-image-2 只支持 t2i 生图（/v1/images/generations），
+    其 /v1/chat/completions 图编端点已不可用（403/404）。当配置了 MOXINGEMINI_API_KEY 时，
+    编辑操作委托给 moxingemini（Gemini 系，走 chat/completions 图编，可用）。
+    这与 edit_image() 的路由（moxingpt+MOXINGEMINI→_edit_image_moxingemini）保持一致。
     """
     import json as _json
     import requests as _requests
     import base64 as _b64
     import re as _re
+
+    # moxingpt 图编端点不可用 → 有 moxingemini key 时委托给它（AGENTS.md 标准组合 --moxingpt --moxingemini）
+    if os.environ.get("MOXINGEMINI_API_KEY", "").strip().startswith("sk-"):
+        print("[moxingpt edit] moxin.studio 图编端点不可用，委托 moxingemini（Gemini 系）编辑", flush=True)
+        from gemini_image_edit import _edit_image_moxingemini
+        _edit_image_moxingemini(
+            image_path, output_path, prompt,
+            keep_returned_size=keep_returned_size, mask_path=mask_path,
+        )
+        return
 
     api_key = os.environ.get("MOXINGPT_API_KEY", "").strip()
     if not api_key.startswith("sk-"):
@@ -421,7 +436,7 @@ def _moxingpt_edit_image(
     }
 
     # 多模型重试：MOXINGPT_MODEL 支持逗号分隔，最多3个候选
-    _raw_models = os.environ.get("MOXINGPT_MODEL", "gpt-image-2,gpt-image-2-base64").strip()
+    _raw_models = os.environ.get("MOXINGPT_MODEL", "[次]gpt-image-2,gpt-image-2-c").strip()
     model_list = [m.strip() for m in _raw_models.split(",") if m.strip()][:3]
     if not model_list:
         model_list = ["gpt-image-2"]
@@ -1197,6 +1212,18 @@ def _crop_step5_to_canvas(
 
 # 商店专题长图 3320×460：画布 3320×500，顶部 y=0-40 纯白 #FFFFFF；
 # BiRefNet 抠图区域为 x=1032-2464、y=0-200（与 WIDE_STRIP_BIREFNET_* 一致）。
+
+def _safe_print(msg: str) -> None:
+    """Windows GBK 控制台安全 print：emoji / 非 ASCII 字符遇到编码不支持时自动替换为 '?'，
+    确保 except 块内的 print 不会因 UnicodeEncodeError 再次抛出异常，吞掉正常的返回值。"""
+    try:
+        print(msg, flush=True)
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        try:
+            print(msg.encode("gbk", errors="replace").decode("gbk"), flush=True)
+        except Exception:
+            pass  # 完全静默，绝不再抛出
+
 WIDE_CANVAS_SIZE = (3320, 500)
 WIDE_TOP_STRIP_H = 40
 # 顶部条带内容区域（Gemini 回退）：x=1470-2464；BiRefNet 单独用 WIDE_STRIP_BIREFNET_*
@@ -1690,11 +1717,55 @@ def _wide_fill_sides_via_api(img_scaled, paste_x: int, paste_y: int, target_w: i
                     pass
 
 
+def _wide_refine_bbox_bg_diff(image_path: str, iw: int, ih: int):
+    """
+    背景差异法收紧 bbox（不依赖 BiRefNet/网络）。
+    从图像两侧极窄边列估计背景色，找前景像素的紧凑外接矩形，加松框边距返回归一化 bbox。
+    失败返回 None。
+    """
+    try:
+        import numpy as np
+        from PIL import Image
+        img = Image.open(image_path).convert("RGB")
+        a = np.array(img).astype(np.int16)
+        edge = max(10, int(iw * 0.025))
+        side = np.concatenate(
+            [a[:, :edge].reshape(-1, 3), a[:, -edge:].reshape(-1, 3)], axis=0
+        )
+        bg = np.median(side, axis=0)
+        thr = int(os.environ.get("WIDE_TOP_POKE_BG_DIST", "45").strip() or "45")
+        diff = np.abs(a - bg).max(axis=2)
+        # 排除近白区（已铺白的白条或高光背景）
+        mn = a.min(axis=2)
+        fg = (diff > thr) & (mn <= 230)
+        ys, xs = np.where(fg)
+        if len(xs) < 50:
+            return None
+        # 松框边距
+        mx, my = 0.04, 0.02
+        rb = (
+            max(0.0, float(xs.min()) / iw - mx),
+            max(0.0, float(ys.min()) / ih - my),
+            min(1.0, float(xs.max()) / iw + mx),
+            min(1.0, float(ys.max()) / ih + my),
+        )
+        return rb
+    except Exception:
+        return None
+
+
 def _wide_refine_bbox_if_suspicious(image_path: str, bbox):
     """
-    bbox 退化守卫：Vision 有时返回近全帧框（如 y 跨度≥0.95 / x 跨度≥0.98），
-    对齐时会把整幅当主体 → 溢出安全区/白条空。此时用 BiRefNet 在源图上复核真实主体轮廓、
-    收紧 bbox（松框留边距，L4），替换可疑框。零 API；BiRefNet 不可用/无有效前景则原样返回。
+    bbox 退化守卫：Vision 有时返回近全帧框（如 y 跨度>=0.95 / x 跨度>=0.98），
+    对齐时会把整幅当主体 -> 溢出安全区/白条空。
+
+    策略（双重收紧）：
+    1. 背景差异法（_wide_refine_bbox_bg_diff）：纯离线，稳健，不依赖模型。
+       对深色底/纯色底（柜子、产品图）效果好。
+    2. BiRefNet 法：模型感知，适合复杂背景。在背景差异法之后作为补充。
+    3. 取两者并集（union bbox）作为最终框：宁松勿紧，避免任一方漏框主体部件。
+
+    零 API；BiRefNet 不可用时退化到背景差异法单路；两者均失败则原样返回。
     可用 WIDE_BBOX_REFINE=0 关闭。
     """
     if os.environ.get("WIDE_BBOX_REFINE", "1").strip().lower() in ("0", "false", "no", "off"):
@@ -1703,38 +1774,70 @@ def _wide_refine_bbox_if_suspicious(image_path: str, bbox):
     suspicious = (y_max - y_min) >= 0.95 or (x_max - x_min) >= 0.98
     if not suspicious:
         return bbox
+
+    import numpy as np
+    from PIL import Image
     try:
-        import numpy as np
-        from PIL import Image
+        img_check = Image.open(image_path)
+        iw, ih = img_check.size
+        img_check.close()
+    except Exception as e:
+        print(f"  wide_from_fill: bbox refine 读图失败（{e}），沿用原 bbox", flush=True)
+        return bbox
+
+    # ── 1. 背景差异法 ──
+    bg_bbox = _wide_refine_bbox_bg_diff(image_path, iw, ih)
+    _safe_print(f"  wide_from_fill: bbox refine bg-diff => {tuple(round(v,3) for v in bg_bbox) if bg_bbox else None}")
+
+    # ── 2. BiRefNet 法 ──
+    br_bbox = None
+    try:
         from birefnet_matting import load_birefnet_matting, extract_alpha_pil
-        img = Image.open(image_path).convert("RGB")
-        iw, ih = img.size
+        arr = np.array(Image.open(image_path).convert("RGB"))
         side = max(iw, ih)
-        arr = np.array(img)
         pad_b, pad_r = side - ih, side - iw
         if pad_b > 0 or pad_r > 0:
             arr = np.pad(arr, ((0, pad_b), (0, pad_r), (0, 0)), mode="reflect")
         model = load_birefnet_matting()
         a = np.array(extract_alpha_pil(Image.fromarray(arr, "RGB"), model=model))[:ih, :iw]
         ys, xs = np.where(a > 100)
-        if len(xs) < 50:
-            print("  wide_from_fill: bbox 复核 BiRefNet 无有效前景，沿用原 bbox", flush=True)
-            return bbox
-        nx0, nx1 = xs.min() / iw, xs.max() / iw
-        ny0, ny1 = ys.min() / ih, ys.max() / ih
-        # 若复核框仍≈全帧（真主体确实占满），不改
-        if (ny1 - ny0) >= 0.95 and (nx1 - nx0) >= 0.95:
-            return bbox
-        mx, my = 0.03, 0.01
-        rb = (max(0.0, nx0 - mx), max(0.0, ny0 - my), min(1.0, nx1 + mx), min(1.0, ny1 + my))
-        print(
-            f"  wide_from_fill: ⚠ 可疑退化 bbox {tuple(round(v,3) for v in bbox)} → BiRefNet 复核收紧为 {tuple(round(v,3) for v in rb)}",
-            flush=True,
-        )
-        return rb
+        if len(xs) >= 50:
+            nx0, nx1 = float(xs.min()) / iw, float(xs.max()) / iw
+            ny0, ny1 = float(ys.min()) / ih, float(ys.max()) / ih
+            # 若 BiRefNet 仍返回近全帧（真主体确实占满），视为无有效收紧
+            if not ((ny1 - ny0) >= 0.95 and (nx1 - nx0) >= 0.95):
+                mx2, my2 = 0.03, 0.01
+                br_bbox = (
+                    max(0.0, nx0 - mx2), max(0.0, ny0 - my2),
+                    min(1.0, nx1 + mx2), min(1.0, ny1 + my2),
+                )
+        _safe_print(f"  wide_from_fill: bbox refine BiRefNet => {tuple(round(v,3) for v in br_bbox) if br_bbox else None}")
     except Exception as e:
-        print(f"  wide_from_fill: bbox 复核失败（{e}），沿用原 bbox", flush=True)
+        _safe_print(f"  wide_from_fill: bbox refine BiRefNet 失败（{e}）")
+
+    # ── 3. 取并集 ──
+    candidates = [b for b in (bg_bbox, br_bbox) if b is not None]
+    if not candidates:
+        _safe_print("  wide_from_fill: bbox refine 两路均无结果，沿用原 bbox")
         return bbox
+
+    # 并集：取所有候选框的最宽范围（宁松勿紧）
+    ux0 = min(b[0] for b in candidates)
+    uy0 = min(b[1] for b in candidates)
+    ux1 = max(b[2] for b in candidates)
+    uy1 = max(b[3] for b in candidates)
+    rb = (ux0, uy0, ux1, uy1)
+
+    # 若并集框仍≈全帧，说明无法收紧（主体真的占满），不改原始 bbox
+    if (rb[3] - rb[1]) >= 0.95 and (rb[2] - rb[0]) >= 0.95:
+        _safe_print(f"  wide_from_fill: bbox refine 并集仍≈全帧，沿用原 bbox")
+        return bbox
+
+    _safe_print(
+        f"  wide_from_fill: [!] suspicious bbox {tuple(round(v,3) for v in bbox)}"
+        f" -> refined (union) {tuple(round(v,3) for v in rb)}"
+    )
+    return rb
 
 
 def wide_from_fill(fill_image_path: str, output_path: str, bbox_file: str | None = None) -> None:
@@ -1814,7 +1917,11 @@ def wide_from_fill(fill_image_path: str, output_path: str, bbox_file: str | None
         if bbox_w_s > safe_w * fit_ratio:
             fit_scale = scale_w
         # 保底：fit 不应把图缩到比 cover 还小太多（否则大片 edge-pad）。至少保证能盖住画布高。
-        fit_scale = max(fit_scale, target_h / ih)
+        # 例外：bbox 纵跨度>=0.85（接近满高，如柜子/人物贯穿全图），此时 fit-to-safe-zone
+        # 已经把主体缩到安全区内，强行套 max(fit_scale, target_h/ih) 会把主体重新撑出安全区。
+        # 两侧空隙由 API 填充或 edge-pad 补齐，不依赖"铺满画布高"这个保底。
+        if bbox_h_norm < 0.85:
+            fit_scale = max(fit_scale, target_h / ih)
         anchor_x_norm, anchor_y_norm = (x_min + x_max) / 2, (y_min + y_max) / 2
         align_cx, align_cy = safe_cx, safe_cy
 
@@ -1903,14 +2010,14 @@ def _wide_a5b_context_h() -> int:
 
 
 def _wide_a5b_min_component_area() -> int:
-    """A5b 去装饰碎屑的连通域最小面积（像素），默认 1200；设 0 关闭过滤。"""
+    """A5b 去装饰碎屑的连通域最小面积（像素），默认 3000（游戏角色特效碎片通常 <3000px²）；设 0 关闭过滤。"""
     raw = os.environ.get("WIDE_A5B_MIN_COMPONENT_AREA", "").strip()
     if not raw:
-        return 1200
+        return 3000
     try:
         return max(0, int(float(raw)))
     except ValueError:
-        return 1200
+        return 3000
 
 
 def _wide_a5b_semantic_enabled() -> bool:

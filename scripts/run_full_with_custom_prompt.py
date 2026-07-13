@@ -261,7 +261,7 @@ def main() -> None:
     if getattr(args, "moxingemini", False):
         os.environ["GOOGLE_GEMINI_BASE_URL"] = os.environ.get("MOXINGEMINI_BASE_URL", "https://www.moxin.studio").strip()
         if not os.environ.get("GEMINI_MODEL"):
-            os.environ["GEMINI_MODEL"] = os.environ.get("MOXINGEMINI_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image-preview")
+            os.environ["GEMINI_MODEL"] = os.environ.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image")
         os.environ["GEMINI_VISION_MODEL"] = os.environ.get("MOXINGEMINI_VISION_MODEL", "[特价次卡]gemini-3.1-pro-preview,[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-2.5-pro")
         mxg_key = get_env_key("MOXINGEMINI_API_KEY")
         if mxg_key and mxg_key.strip().startswith("sk-"):

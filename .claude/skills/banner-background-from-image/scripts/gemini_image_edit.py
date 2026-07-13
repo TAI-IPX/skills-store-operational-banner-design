@@ -531,8 +531,8 @@ def _edit_image_moxingemini(
     """MoxinGemini 图编：moxin.studio /v1/chat/completions，多模型按序重试（MOXINGEMINI_MODEL 逗号分隔，最多3个）。
     支持 mask (RGBA PNG：transparent=可编辑，opaque=保留)。
 
-    默认模型列表首个为 think 类模型，容易返回文本而非图片；配置逗号分隔后备时优先用非 think 模型兜底：
-    MOXINGEMINI_MODEL=[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-3.1-pro-preview,[次]gemini-3.1-flash-image-preview
+    模型列表优先用非 think 模型避免返回文本而非图片：
+    MOXINGEMINI_MODEL=[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image
     """
     key = os.environ.get("MOXINGEMINI_API_KEY", "").strip()
     if not key.startswith("sk-"):
@@ -540,7 +540,7 @@ def _edit_image_moxingemini(
     base_url = os.environ.get("MOXINGEMINI_BASE_URL", "https://www.moxin.studio").rstrip("/")
     model_list = _parse_chat_model_list(
         "MOXINGEMINI_MODEL",
-        "[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-3.1-pro-preview,[次]gemini-3.1-flash-image-preview",
+        "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image",
     )
     return _chat_completions_edit_image(
         backend_label="moxingemini",
