@@ -1,8 +1,9 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Banner 规范唯一数据源：预设、安全区、图例区、布局、规范分组、输出文件名。
 供 banner-composer、banner-background-from-image、banner-background-from-description、run_all_presets 引用。
 """
+import sys
 
 # 预设名 -> (宽, 高)
 PRESETS: dict[str, tuple[int, int]] = {
@@ -729,6 +730,7 @@ def get_layout(width: int, height: int, preset: str | None = None) -> dict:
     if key in LAYOUT_BY_CANVAS:
         out = LAYOUT_BY_CANVAS[key].copy()
     else:
+        print(f"Warning: 画布 ({width}, {height}) 未在 LAYOUT_BY_CANVAS 中注册，回退默认布局", file=sys.stderr)
         out = _DEFAULT_LAYOUT.copy()
     if preset and preset in LAYOUT_BY_PRESET:
         out.update(LAYOUT_BY_PRESET[preset])
