@@ -52,11 +52,11 @@ python scripts/run_full_with_custom_prompt.py
 python scripts/run_full_with_custom_prompt.py -m "主标题" -s "副标题" --prompt-engine
 
 # 商店移动端日常（独立管线）
-python scripts/run_full_with_custom_prompt.py -g 商店移动端日常 -m "主标题" -s "副标题" --description "描述..." --micugpt2 --packy7s
+python scripts/run_full_with_custom_prompt.py -g 商店移动端日常 -m "主标题" -s "副标题" --description "描述..."
 
 # 活动长图（-g 活动长图，KV + 自动取色 + AI 背景 + 三区排版）
 python scripts/run_full_with_custom_prompt.py -g 活动长图 -m "主标题" -s "副标题" \\
-  --xingchengpt --event-date "1.1-1.15" --prize-dir input/prizes \\
+  --event-date "1.1-1.15" --prize-dir input/prizes \\
   --rules "规则一|规则二|规则三" --font-title fonts/title.otf
 
 # 活动长图仅合成（跳过Step1，复用已有KV）

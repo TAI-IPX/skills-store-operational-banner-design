@@ -642,6 +642,18 @@ def _generate_image_moxingpt(
         if not ref_path.is_file():
             print(f"[moxingpt i2i] 参考图不存在: {ref_path}", file=sys.stderr)
             return None
+        # moxin.studio 的 /v1/chat/completions 图编端点已不可用（403/404）。
+        # 有 MOXINGEMINI_API_KEY 时委托 moxingemini（Gemini 系）做 i2i，与主管线路由一致。
+        if os.environ.get("MOXINGEMINI_API_KEY", "").strip().startswith("sk-"):
+            print("[moxingpt i2i] moxin.studio 图编端点不可用，委托 moxingemini（Gemini 系）图生图", file=sys.stderr)
+            try:
+                sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "banner-background-from-image" / "scripts"))
+                from gemini_image_edit import _edit_image_moxingemini
+                _edit_image_moxingemini(str(ref_path), str(out_path), prompt, keep_returned_size=False)
+                return out_path if out_path.is_file() else None
+            except Exception as e:
+                print(f"[moxingpt i2i] 委托 moxingemini 失败: {e}", file=sys.stderr)
+                return None
         import tempfile as _tempfile
         fd, tmp_ref = _tempfile.mkstemp(suffix=".png")
         os.close(fd)

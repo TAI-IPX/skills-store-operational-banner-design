@@ -46,7 +46,9 @@ PRESETS: dict[str, tuple[int, int]] = {
     "PC浏览器push112*112": (112, 112),  # PC浏览器push 112×112：圆角20px、透明通道
     "PC商店push324x160": (324, 160),  # PC商店push 324×160：无文字，无遮罩
     "商店移动端noti700x300": (700, 300),  # 商店移动端通知700×300：无文字，无遮罩
+    "商店移动端noti700x300_art": (700, 300),  # 商店移动端通知700×300（艺术字版）：左侧艺术字 + 右侧背景
     "shop_mobile_generative_ui_cover_1536": (1536, 1024),  # 商店移动端生成式UI封面1536x1024
+    "shop_mobile_nav_icon": (249, 198),  # 手机商店导航栏icon 249x198
     "changtu_poster": "auto",  # 活动长图 1080×auto（高度由内容动态计算）
 }
 
@@ -88,6 +90,7 @@ SAFE_ZONE_BY_CANVAS: dict[tuple[int, int], tuple[int, int, int, int]] = {
     (700, 300): (0, 700, 0, 300),  # 商店移动端noti700*300：全画布为画面安全区
     (1536, 1024): (366, 1170, 0, 1024),  # 商店移动端生成式UI封面1536x1024：安全区 x=366-1170 y=0-1024
     (750, 673): (0, 750, 0, 673),  # 手机端畅玩卡750*673：全画布为画面安全区
+    (249, 198): (0, 249, 0, 198),  # 手机商店导航栏icon 249x198：全画布为安全区
 }
 
 # 按 preset 覆盖安全区（与同尺寸 SAFE_ZONE_BY_CANVAS 并存；裁切/对齐时传入 preset 生效）
@@ -118,6 +121,7 @@ DIALOG_ZONE_BY_CANVAS: dict[tuple[int, int], tuple[int, int, int, int]] = {
 TEXT_ART_ZONE_BY_CANVAS: dict[tuple[int, int], tuple[int, int, int, int]] = {
     (1920, 550): (516, 1026, 90, 360),  # 商店畅玩卡1920*550：文字艺术字 510×270px
     (750, 673): (33, 489, 62, 274),  # 手机端畅玩卡750*673：文字艺术字 456×212px
+    (700, 300): (30, 330, 30, 270),  # 商店移动端noti700x300_art：文字艺术字 300×240px
 }
 
 # 排除区 (x_min, x_max, y_min, y_max) 列表，按画布 (W, H)
@@ -136,7 +140,7 @@ EXCLUSION_ZONES_BY_CANVAS: dict[tuple[int, int], list[tuple[int, int, int, int]]
 # 规范分组：组名 -> 该组要跑的 preset 列表（-g 用）
 GENRE_PRESETS: dict[str, list[str]] = {
     "商店日常": ["default", "card-500", "card-304", "strip", "wide", "push112*112", "PC商店push324x160", "shop_mobile_generative_ui_cover_1536"],
-    "商店移动端日常": ["shop_mobile_banner_984", "shop_mobile_card_650", "shop_mobile_strip_720", "商店移动端noti700x300", "shop_mobile_generative_ui_cover_1536"],
+    "商店移动端日常": ["shop_mobile_banner_984", "shop_mobile_card_650", "shop_mobile_strip_720", "商店移动端noti700x300", "shop_mobile_generative_ui_cover_1536", "shop_mobile_nav_icon"],
     "开放平台": ["open_platform_banner_2560", "open_platform_wechat_banner_900"],
     "PC浏览器push": ["PC浏览器push324*160", "PC浏览器push112*112"],
     "PC商店push": ["PC商店push324x160"],
@@ -145,6 +149,11 @@ GENRE_PRESETS: dict[str, list[str]] = {
     "商店移动端noti": ["商店移动端noti700x300"],
     "商店移动端noti700x300": ["商店移动端noti700x300"],
     "商店移动端noti700*300": ["商店移动端noti700x300"],
+    "商店移动端noti_art": ["商店移动端noti700x300_art"],
+    "商店移动端noti700x300_art": ["商店移动端noti700x300_art"],
+    "商店导航栏icon": ["shop_mobile_nav_icon"],
+    "手机商店导航栏icon 249x198": ["shop_mobile_nav_icon"],
+    "手机商店导航栏icon 249*198": ["shop_mobile_nav_icon"],
     # 单规格别名（与规范命名一致，便于命令行只跑一张）
     "开放平台banner2560*496": ["open_platform_banner_2560"],
     "开放平台banner2560x496": ["open_platform_banner_2560"],
@@ -288,6 +297,7 @@ GENRE_STYLE_PROMPT: dict[str, str] = {
         "下方为信息区，背景干净留白、渐变过渡自然。"
         "禁止出现文字、标题或 CTA 按钮。"
     ),
+    "商店导航栏icon": "",
 }
 
 # 预设 -> 约定输出文件名（Windows 下 * 改为 x）
@@ -330,7 +340,9 @@ OUTPUT_FILENAME_BY_PRESET: dict[str, str] = {
     "PC浏览器push112*112": "PC浏览器push112x112.png",
     "PC商店push324x160": "PC商店push324x160.png",
     "商店移动端noti700x300": "商店移动端noti700x300.png",
+    "商店移动端noti700x300_art": "商店移动端noti700x300_art.png",
     "shop_mobile_generative_ui_cover_1536": "商店移动端生成式UI封面1536x1024.png",
+    "shop_mobile_nav_icon": "手机商店导航栏icon 249x198.png",
     "changtu_poster": "活动长图.jpg",
 }
 
@@ -672,6 +684,11 @@ LAYOUT_BY_PRESET: dict[str, dict] = {
         "corner_radius": 0,
         "transparent": False,
         "multi_scale": None,
+    },
+    "商店移动端noti700x300_art": {  # 共享 (700,300) 画布，在无字版基础上追加艺术字区域
+        "text_art_rect": (30, 30, 300, 240),  # (x, y, w, h) 艺术字区域 x=30~330, y=30~270
+        "text_art_backdrop": False,
+        "no_text": True,  # 主标题+副标题均由艺术字图承载，不渲染普通文字
     },
 }
 

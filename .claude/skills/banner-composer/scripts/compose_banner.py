@@ -647,11 +647,15 @@ def compose(
     """
     Compose banner and save to output_path.
     Canvas size = (width, height). Background is scaled to cover. Gradient and text per LAYOUT_BY_CANVAS or default spec.
+    If preset is given and found in PRESETS, its canvas size overrides width/height.
     If layout has logo_rect and logo_path is set, paste logo (transparent PNG or opaque) scaled to fit.
     If layout has subject_rect and subject_path is set, paste subject (transparent PNG) scaled to fit.
     If subject_bbox (归一化 x_min,y_min,x_max,y_max) is set, paste_background aligns subject with canvas safe zone instead of center-crop.
     If use_ai_linebreak and GEMINI_API_KEY set, uses Gemini for main title line break.
     """
+    # 若 preset 在 PRESETS 中有明确画布定义，自动覆盖 width/height
+    if preset and preset in _spec.PRESETS:
+        width, height = _spec.PRESETS[preset]
     layout = _get_layout(width, height, preset)
     main_x = layout["main_x"]
     main_y = layout["main_y"]
@@ -810,6 +814,14 @@ def compose(
 
     # 若规范有 text_art_rect 且传入了 text_art_path，贴文字艺术字（等比缩放，无透明通道时自动 BiRefNet 抠图）
     if text_art_path and layout.get("text_art_rect"):
+        # 可选底衬：半透明暗色矩形增强艺术字可读性
+        if layout.get("text_art_backdrop"):
+            _bx, _by, _bw, _bh = layout["text_art_rect"]
+            from PIL import Image as _PILImg
+            _backdrop = _PILImg.new("RGBA", (_bw, _bh), (0, 0, 0, 80))
+            _canvas_rgba = canvas.convert("RGBA")
+            _canvas_rgba.paste(_backdrop, (_bx, _by), _backdrop)
+            canvas.paste(_canvas_rgba.convert("RGB"), (0, 0))
         _paste_text_art(
             canvas,
             text_art_path,

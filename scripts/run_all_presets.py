@@ -94,6 +94,7 @@ def main():
     parser.add_argument("--xinchengpt", "-xinchengpt", action="store_true", dest="xinchengpt", help="使用 XinchenGPT 专用 key 调用 gpt-image-2（需 .env 中 XINCHENGPT_API_KEY）")
     parser.add_argument("--lovart", "-lovart", action="store_true", dest="lovart", help="使用 Lovart AI 作为图编后端（去文字/扩图/图生图）")
     parser.add_argument("--text-art", default=None, dest="text_art", help="文字艺术字透明 PNG 路径（粘贴到 text_art_rect 区域）")
+    parser.add_argument("--text-art-prompt", "-P", default=None, dest="text_art_prompt", help="艺术字文本描述（走生成管线：即梦/Gemini生成->BiRefNet抠图")
     parser.add_argument("--dialog", default=None, dest="dialog", help="对话框透明 PNG 路径（粘贴到 dialog_rect 区域）")
     args = parser.parse_args()
 
@@ -601,6 +602,27 @@ def main():
                 if name == "legend_center_card" and joint_logo_path is not None
                 else (str(logo_path) if logo_path else None)
             )
+
+            # shop_mobile_nav_icon 走专用合成管线（圆形+主体+艺术字），不走标准 compose
+            if name == "shop_mobile_nav_icon":
+                print(f"  {name} ({w}x{h}) -> {out_path.name} [专用管线: 圆形+主体+艺术字]")
+                cmd_nav = [
+                    PYTHON_EXE,
+                    str(ROOT / "scripts" / "compose_nav_icon.py"),
+                    "--subject", str(image_path),
+                    "--output", str(out_path.resolve()),
+                ]
+                if getattr(args, "text_art", None):
+                    cmd_nav.extend(["--text-art", str(args.text_art)])
+                if getattr(args, "text_art_prompt", None):
+                    cmd_nav.extend(["--text-art-prompt", args.text_art_prompt])
+                r_nav = subprocess.run(cmd_nav, cwd=scripts_dir, env=env)
+                if r_nav.returncode != 0:
+                    print(f"    compose_nav_icon 失败: {name}", flush=True)
+                resolved, _ = _resolve_output_path(str(out_path))
+                print(f"    -> {resolved}")
+                continue
+
             compose(
                 str(bg_path),
                 str(out_path.resolve()),

@@ -101,6 +101,43 @@ if _SPEC_SCRIPTS.is_dir():
 import spec as _spec
 
 
+def _auto_derive_art_text_from_image(uploaded_img: Path, main_title: str, subtitle: str = "") -> str:
+    _gsd_dir = str(ROOT / ".claude" / "skills" / "banner-background-from-image" / "scripts")
+    if _gsd_dir not in sys.path:
+        sys.path.insert(0, _gsd_dir)
+    from gemini_subject_detect import _call_micugpt2_vision
+    vision_prompt = (
+        "分析这张图片的视觉风格、主色调、光影氛围、艺术风格。"
+        "用1-2句中文描述，聚焦于视觉感受而非具体内容。"
+    )
+    style_hint = _call_micugpt2_vision(str(uploaded_img), vision_prompt)
+    if style_hint:
+        style_hint = style_hint.strip()
+        print(f"  [Vision] 上传图风格分析: {style_hint}", flush=True)
+        sub_clause = f' Below it, smaller subtitle text "{subtitle}".' if subtitle else ""
+        return (
+            f'Stylized typography design: large bold decorative Chinese title "{main_title}" centered prominently.{sub_clause} '
+            f"Visual style: {style_hint}. "
+            "3D metallic gradient, neon glowing edge light, glossy reflective surface. "
+            "CRITICAL: Pure solid black background (RGB 0,0,0). No scene, no objects, no environment. "
+            "ONLY the stylized text characters on pure black canvas. Title fills top 65% of frame, subtitle smaller below. "
+            "Text colors: bright white with vibrant gradient accents."
+        )
+    raise RuntimeError("Vision 分析返回空结果")
+
+
+def _auto_derive_art_text_from_bg(bg_description: str, main_title: str, subtitle: str = "") -> str:
+    sub_clause = f' Below the main title, render smaller subtitle text "{subtitle}" in matching style.' if subtitle else ""
+    return (
+        f'Stylized typography design: large bold decorative Chinese title "{main_title}" rendered prominently in upper area.{sub_clause} '
+        "3D metallic gradient, neon glowing edge light, glossy reflective surface. "
+        "CRITICAL: Pure solid black background (RGB 0,0,0). No scene, no objects, no environment. "
+        "ONLY the stylized text characters on pure black canvas. Main title fills upper 65% of frame. "
+        "Text colors: bright white with cyan-to-gold gradient accents. "
+        "Clean, sharp character strokes."
+    )
+
+
 def main() -> None:
     global _current_run_dir
     parser = argparse.ArgumentParser(
@@ -270,6 +307,21 @@ def main() -> None:
             print("Error: 使用 -moxingemini 时请在 .env 中设置 MOXINGEMINI_API_KEY（且以 sk- 开头）", file=sys.stderr)
             sys.exit(1)
 
+    # 默认 Gemini 编辑后端：未指定任何编辑后端时，自动启用 moxingemini
+    _any_edit = any([
+        getattr(args, f, False) for f in
+        ("packy7s", "packy3s", "packy", "micugemini", "xingchengemini", "xingchengemini1", "moxingemini")
+    ])
+    if not _any_edit and not os.environ.get("GEMINI_API_KEY", "").startswith("sk-"):
+        mxg_key = get_env_key("MOXINGEMINI_API_KEY")
+        if mxg_key and mxg_key.strip().startswith("sk-"):
+            os.environ["GOOGLE_GEMINI_BASE_URL"] = os.environ.get("MOXINGEMINI_BASE_URL", "https://www.moxin.studio").strip()
+            if not os.environ.get("GEMINI_MODEL"):
+                os.environ["GEMINI_MODEL"] = os.environ.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image")
+            os.environ["GEMINI_VISION_MODEL"] = os.environ.get("MOXINGEMINI_VISION_MODEL", "[特价次卡]gemini-3.1-pro-preview,[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-2.5-pro")
+            os.environ["GEMINI_API_KEY"] = mxg_key.strip()
+            print("[方案 A] 未指定编辑后端，自动启用 moxingemini", flush=True)
+
     # ══════════════ 块2: 生图后端选择 ══════════════
     # --packygpt 优先（gpt-image-2），--micugpt2 其次，--packy* 回退 Gemini 生图
     if getattr(args, "packygpt", False):
@@ -376,6 +428,15 @@ def main() -> None:
 
     elif getattr(args, "packy", False):
         os.environ["BANNER_IMAGE_BACKEND"] = "gemini"
+
+    # 默认生图后端：BANNER_IMAGE_BACKEND 未设置时，自动启用 moxingpt
+    if not os.environ.get("BANNER_IMAGE_BACKEND"):
+        moxingpt_key = get_env_key("MOXINGPT_API_KEY")
+        if moxingpt_key and moxingpt_key.strip().startswith("sk-"):
+            os.environ["MOXINGPT_API_KEY"] = moxingpt_key.strip()
+            os.environ["BANNER_IMAGE_BACKEND"] = "moxingpt"
+            os.environ["BANNER_EDIT_BACKEND"] = "gemini"
+            print("[方案 A] 未指定生图后端，自动启用 moxingpt", flush=True)
 
     # 先解析主标题、副标题（Step 2 叠字与 run_dir 命名必需；仅主副标题时也用于描述生成）
     if args.main_title_file:
@@ -634,8 +695,32 @@ def main() -> None:
 
         # Step 1b: 文字艺术字独立管线（生图 → 亮度蒙版 → 透明 PNG）
         text_art_rgba_path = None
-        if getattr(args, "text_art", None):
-            # 取第一个分组的第一个预设尺寸作为目标画布，查询 TEXT_ART_ZONE 获取艺术字区域
+
+        # 确定艺术字描述：优先 --text-art 参数，否则自动推导
+        text_art_desc = getattr(args, "text_art", None)
+        if not text_art_desc:
+            for _g in groups:
+                for _p in _spec.GENRE_PRESETS.get(_g, []):
+                    if _p in _spec.PRESETS:
+                        _pw, _ph = _spec.PRESETS[_p]
+                        _ly = _spec.get_layout(_pw, _ph, _p)
+                        if _ly.get("text_art_rect"):
+                            _uploaded = ROOT / "input" / "uploads" / "current.png"
+                            if _uploaded.is_file():
+                                print("[方案 A] Step 1b: 检测到上传图片，Gemini Vision 分析艺术字风格...", flush=True)
+                                try:
+                                    text_art_desc = _auto_derive_art_text_from_image(_uploaded, main_title, subtitle)
+                                except Exception as _e:
+                                    print(f"  [Vision] 风格分析失败 ({_e})，回退至背景描述推导", file=sys.stderr)
+                                    text_art_desc = _auto_derive_art_text_from_bg(description, main_title, subtitle)
+                            else:
+                                print("[方案 A] Step 1b: 从背景描述自动推导艺术字 prompt...", flush=True)
+                                text_art_desc = _auto_derive_art_text_from_bg(description, main_title, subtitle)
+                            break
+                if text_art_desc:
+                    break
+
+        if text_art_desc:
             _first_group = groups[0] if groups else None
             _first_preset = _spec.GENRE_PRESETS.get(_first_group, [None])[0] if _first_group else None
             if _first_preset and _first_preset in _spec.PRESETS:
@@ -644,25 +729,29 @@ def main() -> None:
             else:
                 _ta_zone = None
             if _ta_zone:
-                _ta_w = _ta_zone[1] - _ta_zone[0]  # x_max - x_min
-                _ta_h = _ta_zone[3] - _ta_zone[2]  # y_max - y_min
-                print(f"[方案 A] Step 1b: 生成文字艺术字 ({_ta_w}×{_ta_h})...", flush=True)
+                _ta_w = _ta_zone[1] - _ta_zone[0]
+                _ta_h = _ta_zone[3] - _ta_zone[2]
+                print(f"[方案 A] Step 1b: 生成文字艺术字 ({_ta_w}x{_ta_h})...", flush=True)
 
-                # 1. 用 Gemini/PackyGPT 按原生尺寸生图（1024×640，零裁剪，文字完整）
                 text_art_bg_path = run_dir / "text_art_raw.png"
+                # 按 text_art_zone 宽高比计算生图尺寸，保证主标题不被截断
+                _ta_ratio = _ta_w / _ta_h if _ta_h > 0 else 1.6
+                if _ta_ratio >= 1.5:
+                    _gen_w, _gen_h = 1024, max(int(1024 / _ta_ratio / 64 + 0.5) * 64, 512)
+                else:
+                    _gen_w, _gen_h = 1024, 640
                 cmd_ta = [
                     PYTHON_EXE,
                     str(STEP1_SCRIPT),
-                    args.text_art,
+                    text_art_desc,
                     str(text_art_bg_path),
-                    "--width", "1024",
-                    "--height", "640",
+                    "--width", str(_gen_w),
+                    "--height", str(_gen_h),
                 ]
                 r_ta = subprocess.run(cmd_ta, cwd=str(ROOT), env=env)
                 if r_ta.returncode != 0 or not text_art_bg_path.is_file():
                     print("Warning: 文字艺术字生图失败，跳过。", file=sys.stderr)
                 else:
-                    # 2. 亮度蒙版处理（白底黑字艺术字：白色→透明，黑色→保留）
                     text_art_rgba_path = run_dir / "text_art_rgba.png"
                     try:
                         from PIL import Image as _PILImage
@@ -670,7 +759,6 @@ def main() -> None:
                         ta_img = _PILImage.open(text_art_bg_path).convert("RGBA")
                         gray = ta_img.convert("L")
                         avg = _np.array(gray).mean()
-                        # 浅底深字(avg>128)→白底透明黑字留；深底浅字→黑底透明白字留
                         alpha = gray.point(lambda x: 255 - x) if avg > 128 else gray.point(lambda x: x)
                         ta_img.putalpha(alpha)
                         ta_img.save(str(text_art_rgba_path), "PNG")

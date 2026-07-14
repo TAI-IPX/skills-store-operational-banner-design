@@ -89,7 +89,7 @@ py scripts/ensure_python.py
   - 每次运行 OpenCode AI 都会强制重新推导描述（不复用历史 prompt），详见 `.opencode/instructions.md`；也可显式指定 `--prompt-engine` 调用外部 Gemini 推导或 `--prompt-engine-claude` 调用 Claude 推导。
   - 无 LLM 依赖：`--prompt-optimizer-template`（确定性模板引擎）。
   - `-g 商店移动端日常` 自动走独立移动端管线（`run_mobile_presets.py`）。
-- 商店移动端日常独立管线：`py scripts/run_mobile_presets.py <bg.png> -m "主标题" -s "副标题" --micugpt2 --packy7s`
+- 商店移动端日常独立管线：`py scripts/run_mobile_presets.py <bg.png> -m "主标题" -s "副标题" --moxingpt --moxingemini`
   - 定制的 A4 填充画布（2000×700）+ A5 移动端安全区对齐。
 - Step1 仅从描述生背景：
   `.claude/skills/banner-background-from-description/scripts/generate_from_description.py`
@@ -396,6 +396,7 @@ conn.commit(); conn.close()
 |--------|-----------|------|
 | 商店日常 | run_all_presets.py | 8 个 preset（含生成式UI封面1536x1024） |
 | 商店移动端日常 | run_mobile_presets.py | 4 个 preset |
+| **商店导航栏icon** | **compose_nav_icon.py（专用）** | **1 个 preset（249×198，三层合成）；⚠️ 勿走 run_all_presets，会浪费 Step0a/0b/Step1 API** |
 | 开放平台 | run_all_presets.py | 2 个 preset |
 | **活动长图** | **run_changtu.py** | **1 个 preset（changtu_poster）** |
 | **战报** | **run_battle_report.py** | **1 个 preset（1080px 竖版长图）** |
@@ -404,48 +405,37 @@ conn.commit(); conn.close()
 
 ### Banner 管线速查
 
+> 当前仅 MOXINGPT_API_KEY + MOXINGEMINI_API_KEY 可用，未指定后端时自动默认 `--moxingpt --moxingemini`。
+
 ```bash
-# 方案 A 完整命令（prompt-engine 写描述 + packy7s 生图 + Gemini 编辑）
-py scripts/run_full_with_custom_prompt.py -g 商店畅玩卡1920*550 --packy7s \
+# 方案 A 完整命令（默认 moxingpt 生图 + moxingemini 编辑，无需显式指定后端）
+py scripts/run_full_with_custom_prompt.py -g 商店畅玩卡1920*550 \
   --main-title "开学回血补给站" --subtitle "升级学习力" --prompt-engine
 
-# 方案 A 完整命令（自定义描述 + packy7s 生图 + Gemini 编辑）
-py scripts/run_full_with_custom_prompt.py -g 商店畅玩卡1920*550 --packy7s \
-  --main-title "开学回血补给站" --description "背景描述..." --text-art "艺术字描述..."
+# 方案 A 完整命令（自定义描述，后端自动默认 moxingpt + moxingemini）
+py scripts/run_full_with_custom_prompt.py -g 商店移动端noti700x300_art \
+  --main-title "告别杂乱无章" --description-file input/prompt.txt
 
-# micugpt2 图生图（1:8 比例直接出）
-py scripts/run_full_with_custom_prompt.py -g "商店题头图 1740*220" --micugpt2 \
-  --main-title "." --description "描述..." -i input/uploads/current.png
-
-# packygpt 原图编辑（不重绘）
-py scripts/run_all_presets.py input/uploads/current.png -g "商店题头图 1740*220" \
-  --main-title "." -packygpt
-
-# packygpt 生图 + Gemini 编辑（商店日常）
-py scripts/run_full_with_custom_prompt.py -g 商店日常 --packygpt --packy7s \
+# 显式指定后端（当配置多组密钥时）
+py scripts/run_full_with_custom_prompt.py -g 商店日常 --moxingpt --moxingemini \
   -m "主标题" -s "副标题" --description-file input/prompt.txt
-
-# micugpt2 生图 + Gemini 编辑 + 跳过A1去干扰
-py scripts/run_full_with_custom_prompt.py -g 商店日常 --micugpt2 --packy7s \
-  -m "主标题" -s "副标题" --description-file input/prompt.txt --skip-remove-text
-
-# 商店移动端日常全流程（自动走独立移动端管线）
-py scripts/run_full_with_custom_prompt.py -g 商店移动端日常 --micugpt2 --packy7s \
-  -m "主标题" -s "副标题" --description "描述..." --prompt-engine
 
 # 多 -g 合并：一张 bg.png 裁切多个尺寸（一次 API 调用）
 py scripts/run_full_with_custom_prompt.py -g "商店田字格 304*216" -g "商店首页 1976*464" \
-  --packygpt --packy7s -m "主标题" -s "副标题" --prompt-engine
+  -m "主标题" -s "副标题" --prompt-engine
 
 # 仅重跑移动端 Step2（复用已有 bg.png，不重新生图）
 py scripts/run_mobile_presets.py "output/xxx/bg.png" \
-  -m "主标题" -s "副标题" --output-dir "output/xxx" --micugpt2 --packy7s
+  -m "主标题" -s "副标题" --output-dir "output/xxx" --moxingpt --moxingemini
 
 # 仅重跑 Step2（复用已有 bg.png，不重新生图）
 py scripts/run_all_presets.py "output/xxx/bg.png" \
   --main-title "主标题" --subtitle "副标题" --output-dir "output/xxx" \
-  --skip-a4-outpaint --skip-remove-text --genre 商店日常 -X -packy7s
-  #   -X = -packygpt 或 -micugpt2
+  --skip-a4-outpaint --skip-remove-text --genre 商店日常 --moxingpt --moxingemini
+
+# 导航栏icon 专用管线（跳过 Step0a/0b/Step1，零额外 API 消耗）
+py scripts/compose_nav_icon.py --subject "input/uploads/current.png" \
+  -P "艺术字描述" -o "output/导航栏icon.png"
 ```
 
 活动长图相关命令：

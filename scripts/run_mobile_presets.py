@@ -51,6 +51,7 @@ MOBILE_PRESETS = [
     "shop_mobile_banner_984",
     "shop_mobile_card_650",
     "shop_mobile_strip_720",
+    "商店移动端noti700x300_art",
 ]
 
 # 生成式UI封面单独处理（direct-to-canvas，不进 A5 裁切循环）
