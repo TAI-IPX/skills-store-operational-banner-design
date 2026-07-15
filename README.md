@@ -1,4 +1,4 @@
-# skills-store-operational-banner-design（商店运营 Banner 设计）— 横幅（Banner）+ 活动长图（竖版海报）生成系统
+# skills-store-operational-banner-design（商店运营 Banner 设计）— 横幅（Banner）生成系统
 
 Claude / Cursor 技能项目：横幅制作与技能模板。
 
@@ -53,32 +53,6 @@ python scripts/run_full_with_custom_prompt.py -m "主标题" -s "副标题" --pr
 
 # 商店移动端日常（独立管线）
 python scripts/run_full_with_custom_prompt.py -g 商店移动端日常 -m "主标题" -s "副标题" --description "描述..."
-
-# 活动长图（-g 活动长图，KV + 自动取色 + AI 背景 + 三区排版）
-python scripts/run_full_with_custom_prompt.py -g 活动长图 -m "主标题" -s "副标题" \\
-  --event-date "1.1-1.15" --prize-dir input/prizes \\
-  --rules "规则一|规则二|规则三" --font-title fonts/title.otf
-
-# 活动长图仅合成（跳过Step1，复用已有KV）
-python scripts/run_changtu.py --kv input/kv.jpg --font-title fonts/title.otf \\
-  -m "主标题" -s "副标题" --xingchengpt -o output/活动长图.jpg
-
-# 邮件长图全流程（-g 邮件长图，KV + EVENT01~04 四区排版 + Vision 风格分析 + API 装饰背景）
-python scripts/run_full_with_custom_prompt.py -g 邮件长图 -m "主标题" -s "副标题" \\
-  --kv input/kv.png --font-title fonts/title.otf \\
-  --event-date "2026/7/6-2026/10/10" \\
-  --prize-dir input/prizes --prize-order "礼盒2|礼盒1|礼盒4|礼盒3" \\
-  --method-dir input/screenshots \\
-  --method-desc "在联想应用商店...|在LegionZone..." \\
-  --history-dir input/history --history-order "礼品1|礼品4|礼品3|礼品2" \\
-  --intro-text "《王者荣耀世界》是由腾讯天美工作室研发的..." \\
-  --xingchengpt
-
-# 邮件长图仅合成（跳过Step1，复用已有KV）
-python scripts/run_email_poster.py --kv input/kv.png --font-title fonts/title.otf \\
-  -m "主标题" -s "副标题" --event-date "2026/7/6-2026/10/10" \\
-  --prize-dir input/prizes --method-dir input/screenshots \\
-  --history-dir input/history --intro-text "游戏介绍..." --xingchengpt
 
 # 查看帮助
 python scripts/run_banner.py --help
