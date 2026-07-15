@@ -620,6 +620,26 @@ mask[body, 3] = 255
 
 ## Changelog
 
+### 2026-07-14 — 商店移动端noti700x300_art 新增左侧黑色渐变（文字可读性修复）
+
+**问题**：`商店移动端noti700x300_art` preset 的艺术字叠在背景图上时，背景较亮导致文字看不清。
+
+**根因**：`LAYOUT_BY_CANVAS[(700,300)]` 设 `gradient_rect: None`，`LAYOUT_BY_PRESET["商店移动端noti700x300_art"]` 未覆盖，compose 阶段直接跳过渐变绘制（`compose_banner.py:702` 条件 `if grad_rect is not None`）。
+
+**改动**：
+
+| # | 文件 | 内容 |
+|---|------|------|
+| 1 | `.claude/skills/banner-spec/scripts/spec.py` | `LAYOUT_BY_PRESET["商店移动端noti700x300_art"]` 追加 6 个渐变参数：`gradient_rect=(370,300)`、`gradient_rect_x=0`、`gradient_rect_y=0`、`gradient_opacity=0.4`、`gradient_diagonal=False`、`gradient_vertical=False` |
+
+**渐变参数选择逻辑**：
+- 方向：水平（左黑→右透明），与文字布局一致（文字在左侧 x=30~330，渐变从左压暗）
+- 宽度 370px = 文字区右边界 330 + 约 40px 缓冲，避免渐变在文字边缘截断
+- 不透明度 0.4 = 压暗但不遮盖背景的舒适阈值；背景偏亮时可调到 0.5~0.55
+- compose 代码无需修改，所有渐变参数已有对应读取逻辑（`compose_banner.py:669~676`）
+
+**可复用规律**：需要给某 preset 加渐变时，只在 `LAYOUT_BY_PRESET` 中追加参数即可，compose 逻辑自动消费，零改动 compose 代码。
+
 ### 2026-07-10 — moxingpt 图编端点失效 → 编辑委托 moxingemini（全项目修复）
 
 **问题**：`--moxingpt` 生图（t2i，`/v1/images/generations`）正常，但 moxin.studio 的 `/v1/chat/completions` 图编端点已挂（403 Forbidden / 404 No endpoint）。`prepare_background.py` 的 S5 填充、S6 修复、strip、direct-to-canvas、A4 两处共 6 个内部调用点直接硬调 `_moxingpt_edit_image`（死端点），绕过了 `edit_image()` 里已有的正确路由（moxingpt+MOXINGEMINI → `_edit_image_moxingemini`），导致 Step2 编辑全线失败。单独 `--moxingemini` 又会让 backend=gemini 走原生 generateContent，中文模型名 `[次]gemini...` 触发 ascii URL 编码崩溃。

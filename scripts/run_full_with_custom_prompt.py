@@ -234,6 +234,9 @@ def main() -> None:
     # 独立 if 块（非 elif），允许多个 flag 同时生效
     # Key 回退链：专用 key → GEMINI_API_KEY / GEMINI_API_KEY_ALT
 
+    # 保存原始 GEMINI_API_KEY（用于 prompt-engine，避免被 moxingemini 等后端覆盖）
+    _original_gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+
     if getattr(args, "packy7s", False):
         os.environ["GOOGLE_GEMINI_BASE_URL"] = _packy_base_url()
         p7s = get_env_key("PACKY7S_API_KEY", "GEMINI_API_KEY")
@@ -571,6 +574,15 @@ def main() -> None:
             try:
                 if use_engine or use_engine_claude:
                     backend = "claude" if use_engine_claude else "gemini"
+                    # 恢复原始 GEMINI_API_KEY 用于 prompt-engine（避免被 moxingemini 等后端覆盖）
+                    if backend == "gemini":
+                        if not _original_gemini_api_key:
+                            print("Error: --prompt-engine 需要 GEMINI_API_KEY（标准 Google Gemini API 密钥）", file=sys.stderr)
+                            print("       当前仅配置了 MOXINGEMINI_API_KEY（用于 moxin.studio 编辑后端），不兼容 prompt-engine。", file=sys.stderr)
+                            print("       请在 .env 中设置 GEMINI_API_KEY，或改用 --prompt-optimizer-template（无需 API Key）", file=sys.stderr)
+                            print("       或使用 --prompt-engine-claude（需 ANTHROPIC_API_KEY）", file=sys.stderr)
+                            sys.exit(1)
+                        os.environ["GEMINI_API_KEY"] = _original_gemini_api_key
                     description, full_trace = _gfd.prompt_optimizer_engine(
                         main_title, subtitle or "",
                         backend=backend,
@@ -734,19 +746,14 @@ def main() -> None:
                 print(f"[方案 A] Step 1b: 生成文字艺术字 ({_ta_w}x{_ta_h})...", flush=True)
 
                 text_art_bg_path = run_dir / "text_art_raw.png"
-                # 按 text_art_zone 宽高比计算生图尺寸，保证主标题不被截断
-                _ta_ratio = _ta_w / _ta_h if _ta_h > 0 else 1.6
-                if _ta_ratio >= 1.5:
-                    _gen_w, _gen_h = 1024, max(int(1024 / _ta_ratio / 64 + 0.5) * 64, 512)
-                else:
-                    _gen_w, _gen_h = 1024, 640
+                # 固定 16:9 生图，compose 里 fit 缩放自动适配 text_art_rect
                 cmd_ta = [
                     PYTHON_EXE,
                     str(STEP1_SCRIPT),
                     text_art_desc,
                     str(text_art_bg_path),
-                    "--width", str(_gen_w),
-                    "--height", str(_gen_h),
+                    "--width", "1024",
+                    "--height", "576",
                 ]
                 r_ta = subprocess.run(cmd_ta, cwd=str(ROOT), env=env)
                 if r_ta.returncode != 0 or not text_art_bg_path.is_file():

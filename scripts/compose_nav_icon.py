@@ -87,8 +87,31 @@ def circle_mask(w: int, h: int, cx: int, cy: int, r: int) -> Image.Image:
     """返回同尺寸单通道圆形蒙版（圆内255，外0）"""
     mask = Image.new("L", (w, h), 0)
     draw = ImageDraw.Draw(mask)
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    draw.ellipse([cx - r, cy - r, cx + r, cx + r], fill=255)
     return mask
+
+
+def feathered_circle_mask(w: int, h: int, cx: int, cy: int, r: int, feather: int = 12) -> Image.Image:
+    """
+    返回带羽化边缘的圆形蒙版（单通道 L）。
+    - 圆内 r-feather 以内：255（完全不透明）
+    - r-feather 到 r 之间：线性渐变 255→0
+    - 圆外：0
+    """
+    import math
+    mask_arr = np.zeros((h, w), dtype=np.float32)
+    y_idx, x_idx = np.ogrid[:h, :w]
+    dist = np.sqrt((x_idx - cx) ** 2 + (y_idx - cy) ** 2)
+
+    inner_r = max(1, r - feather)
+    # 内部完全不透明
+    mask_arr[dist <= inner_r] = 1.0
+    # 羽化区域线性过渡
+    feather_zone = (dist > inner_r) & (dist <= r)
+    if feather_zone.any():
+        mask_arr[feather_zone] = 1.0 - (dist[feather_zone] - inner_r) / feather
+    # 外部保持 0
+    return Image.fromarray((mask_arr * 255).astype(np.uint8), mode="L")
 
 
 def auto_matte_birefnet(input_path: Path, output_path: Path) -> bool:
@@ -134,6 +157,35 @@ def ensure_transparent_png(input_path: Path, work_dir: Path) -> Path:
     rgba.save(out, "PNG")
     print(f"[info] 使用亮度蒙版兜底: {out}", file=sys.stderr)
     return out
+
+
+def crop_blank_and_scale(img: Image.Image, max_w: int, max_h: int, center_x: float, center_y: float) -> tuple[Image.Image, int, int]:
+    """
+    裁切透明边距，等比缩放至 max_w x max_h 内，图像中心对齐到 (center_x, center_y)。
+    返回: (裁切后的图, 左上角 x, 左上角 y)
+    """
+    # 1. 裁切透明边距
+    alpha = np.array(img.split()[-1])
+    rows = np.any(alpha > 0, axis=1)
+    cols = np.any(alpha > 0, axis=0)
+    if rows.any() and cols.any():
+        r0, r1 = np.where(rows)[0][[0, -1]]
+        c0, c1 = np.where(cols)[0][[0, -1]]
+        img = img.crop((c0, r0, c1 + 1, r1 + 1))
+
+    # 2. 等比缩放到安全区内
+    iw, ih = img.size
+    scale = min(max_w / iw, max_h / ih, 1.0)
+    new_w = max(1, int(iw * scale))
+    new_h = max(1, int(ih * scale))
+    if (new_w, new_h) != (iw, ih):
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # 3. 计算左上角位置（图像中心对齐到安全区中心）
+    left = int(round(center_x - new_w / 2))
+    top = int(round(center_y - new_h / 2))
+
+    return img, left, top
 
 
 def render_text_art_pil(text: str, max_w: int, max_h: int, out_path: Path) -> Path:
@@ -366,6 +418,103 @@ def _detect_subject_split(subject_path: Path) -> dict:
     return {}
 
 
+def _detect_subject_split_birefnet(subject_path: Path) -> dict:
+    """
+    Vision 失败时的 BiRefNet 兜底：跑一次主体抠图，从 alpha 计算真实 bbox + split_ratio。
+    返回同格式 dict：{"type", "ratio", "bbox", "key_parts"}，失败返回 {}。
+    """
+    try:
+        # 延迟导入避免未安装时直接报错
+        from .claude.skills.banner_background_from_image.scripts.birefnet_matting import extract_alpha_pil, load_birefnet_matting
+    except ImportError:
+        # 尝试相对路径导入（项目根目录下运行时）
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".claude" / "skills" / "banner-background-from-image" / "scripts"))
+            from birefnet_matting import extract_alpha_pil, load_birefnet_matting
+        except ImportError:
+            print("[nav_icon] BiRefNet fallback: module not available", file=sys.stderr)
+            return {}
+
+    try:
+        img = Image.open(subject_path).convert("RGBA")
+        model = load_birefnet_matting()
+        alpha = extract_alpha_pil(img, model=model)
+        # alpha 是 0-255，转为 numpy 计算 bbox
+        arr = np.array(alpha)
+        # 阈值：>10 视为前景
+        rows = np.any(arr > 10, axis=1)
+        cols = np.any(arr > 10, axis=0)
+        if not rows.any() or not cols.any():
+            print("[nav_icon] BiRefNet fallback: empty alpha", file=sys.stderr)
+            return {}
+
+        r0, r1 = np.where(rows)[0][[0, -1]]
+        c0, c1 = np.where(cols)[0][[0, -1]]
+        h, w = arr.shape
+
+        # 归一化 bbox
+        bbox = {
+            "x": float(c0) / w,
+            "y": float(r0) / h,
+            "w": float(c1 - c0 + 1) / w,
+            "h": float(r1 - r0 + 1) / h,
+        }
+
+        # split_ratio：主体垂直中心相对于主体顶部的比例
+        # 垂直中心 = (r0 + r1/2) / h，即主体中心在整图中的 y 归一化
+        # split_ratio = (center_y - r0/h) / (r1/h - r0/h) = 0.5（主体中心）
+        # 我们用主体中心作为分界，对应 split_ratio=0.5
+        # 也可以用更保守的值（如 0.4）避免切到头部
+        split_ratio = 0.5
+
+        # 推断类型：根据宽高比
+        aspect = bbox["w"] / bbox["h"] if bbox["h"] > 0 else 1
+        if aspect > 1.3:
+            stype = "object_wide"
+        elif aspect < 0.7:
+            stype = "object_tall"
+        else:
+            stype = "object"
+
+        return {
+            "type": stype,
+            "ratio": split_ratio,
+            "bbox": bbox,
+            "key_parts": f"bbox_center_y={bbox['y'] + bbox['h']/2:.2f}",
+        }
+    except Exception as e:
+        print(f"[nav_icon] BiRefNet fallback error: {e}", file=sys.stderr)
+        return {}
+
+
+def crop_blank_and_scale(art: Image.Image, safe_w: int, safe_h: int, center_x: float, center_y: float) -> tuple[Image.Image, int, int]:
+    """
+    裁切透明空白、等比缩放到安全区、返回(处理后的图, 放置x, 放置y)
+    """
+    # 1. 检测非透明像素边界
+    arr = np.array(art)
+    alpha = arr[:, :, 3]
+    rows = np.any(alpha > 0, axis=1)
+    cols = np.any(alpha > 0, axis=0)
+    if not rows.any() or not cols.any():
+        return art, 0, 0
+    r0, r1 = np.where(rows)[0][[0, -1]]
+    c0, c1 = np.where(cols)[0][[0, -1]]
+    art = art.crop((c0, r0, c1 + 1, r1 + 1))
+
+    # 2. 等比缩放适应安全区
+    scale = min(safe_w / art.width, safe_h / art.height)
+    new_w = max(1, int(art.width * scale))
+    new_h = max(1, int(art.height * scale))
+    art = art.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # 3. 计算放置位置：图像中心对齐安全区中心
+    x = int(center_x - new_w / 2)
+    y = int(center_y - new_h / 2)
+    return art, x, y
+
+
 def _draw_split_preview(subject_rgba: Image.Image, split_info: dict, output_path: Path) -> None:
     """
     在主体 RGBA 图上绘制 split 预览：红色方框 = 主体 bbox，红色横线 = split_y。
@@ -403,15 +552,26 @@ def _draw_split_preview(subject_rgba: Image.Image, split_info: dict, output_path
 
 # ---------- 艺术字生成 ----------
 def _build_text_art_prompt(title: str, vision_info: dict | None = None) -> str:
-    """构建艺术字生成 prompt，融合 Vision 分析风格"""
+    """构建艺术字生成 prompt，融合 Vision 分析风格。
+    铁律：禁止白色/近白色填充、禁止重复文字、必须透明背景。
+    """
     base = (
-        f'Generate a transparent-background stylized Chinese text "{title}" as title art. '
-        "The text should have a bold, eye-catching design with 3D depth, metallic gradient, "
-        "and glowing outline effect. Clean typography, no background, isolated on pure white."
+        f'Stylized Chinese title art text: "{title}". '
+        "Render the text EXACTLY ONCE as a single line — do NOT duplicate, repeat, "
+        "shadow-copy, or show multiple versions of the text. "
+        "Bold 3D lettering with vivid saturated colors: gold, orange, red, or colorful gradient. "
+        "NEVER use white or near-white (#fff, #eee, light grey) for text fill, stroke, or glow. "
+        "Strong glowing outline in a complementary dark or saturated color. "
+        "Pure transparent background — absolutely no white fill, no background rectangle, "
+        "no white glow, no shadow copy. Isolated text characters only."
     )
     if vision_info:
         style = vision_info.get("style", "")
         mood = vision_info.get("mood", "")
+        colors = vision_info.get("colors", [])
+        if colors:
+            color_hint = ", ".join(colors[:3])
+            base += f" Use these colors from the subject palette (avoid white): {color_hint}."
         if style:
             base += f" Match the visual style: {style}."
         if mood:
@@ -600,6 +760,10 @@ def compose(
     # 4. Gemini 检测主体结构（bbox + split_ratio）
     split_info = _detect_subject_split(subject_path)
     if not split_info:
+        print("[nav_icon] Vision split failed, trying BiRefNet fallback...", flush=True)
+        # Vision 失败时，用 BiRefNet 抠图得到的 alpha 计算真实 bbox
+        split_info = _detect_subject_split_birefnet(subject_path)
+    if not split_info:
         split_info = {"type": "unknown", "ratio": 0.45, "bbox": {"x": 0, "y": 0, "w": 1, "h": 1}}
     split_ratio = split_info.get("ratio", 0.45)
     stype = split_info.get("type", "?")
@@ -610,59 +774,107 @@ def compose(
     # 这里用的是 BiRefNet 抠图后的原始尺寸 subject（尚未画布缩放）
     _draw_split_preview(subject, split_info, work / "_split_preview_before.png")
 
-    # 5. 主体缩放（方案C）：基于 bbox 动态 scale，bbox 完整落入圆的内切正方形
-    bbox = split_info.get("bbox", {"x": 0, "y": 0, "w": 1, "h": 1})
-    bx, by, bw, bh = bbox.get("x", 0), bbox.get("y", 0), bbox.get("w", 1), bbox.get("h", 1)
+    # 5. tight-crop 去透明边距（防止原图含大量透明边距导致 scale 极小，如 8192×8192 的 PNG）
+    arr_tc = np.array(subject)
+    alpha_tc = arr_tc[:, :, 3]
+    rows_tc = np.any(alpha_tc > 10, axis=1)
+    cols_tc = np.any(alpha_tc > 10, axis=0)
+    if rows_tc.any() and cols_tc.any():
+        r0_tc, r1_tc = np.where(rows_tc)[0][[0, -1]]
+        c0_tc, c1_tc = np.where(cols_tc)[0][[0, -1]]
+        subject = subject.crop((c0_tc, r0_tc, c1_tc + 1, r1_tc + 1))
+        print(f"[nav_icon] tight-crop: {arr_tc.shape[1]}x{arr_tc.shape[0]} → {subject.width}x{subject.height}", flush=True)
 
-    # 圆的内切正方形边长（系数 0.92 留边距）
-    fit_size = int(RADIUS * 2 * 0.92)
+    # 自适应缩放：根据主体宽高比选择约束轴，确保主体不过度超出画布
+    # 主体 bbox 中心对齐圆心，底部被圆形遮罩裁切，顶部自由溢出
+    target_h_cap = CANVAS_H  # 最大高度 = 画布高
+    target_h_floor = int(RADIUS * 1.6)  # ~110px 下限
 
-    # bbox 退化兜底：检测失败时（w>0.9 且 h>0.9）改用固定 scale
-    if bw > 0.9 and bh > 0.9:
-        scale = CANVAS_H * 0.85 / subject.height
-        print(f"[nav_icon] bbox 退化，使用固定 scale={scale:.3f}", flush=True)
+    aspect = subject.width / subject.height
+    if aspect >= 1.0:
+        # 宽图/方图：以宽度为约束轴（两侧各允许溢出 20px）
+        target_w = CANVAS_W + 40
+        scale = target_w / subject.width
+        new_w = target_w
+        new_h = max(1, int(subject.height * scale))
+        # 宽图高度也要在合理范围内
+        if new_h > target_h_cap:
+            scale = target_h_cap / subject.height
+            new_h = target_h_cap
+            new_w = max(1, int(subject.width * scale))
+        elif new_h < target_h_floor:
+            scale = target_h_floor / subject.height
+            new_h = target_h_floor
+            new_w = max(1, int(subject.width * scale))
     else:
-        subj_bbox_w_px = max(1, bw * subject.width)
-        subj_bbox_h_px = max(1, bh * subject.height)
-        scale = fit_size / max(subj_bbox_w_px, subj_bbox_h_px)
-        print(f"[nav_icon] bbox fit scale={scale:.3f}, fit_size={fit_size}px, bbox=({bx:.2f},{by:.2f},{bw:.2f},{bh:.2f})", flush=True)
+        # 高图/竖图：以高度为约束轴
+        target_h = max(target_h_floor, min(target_h_cap, int(RADIUS * 2 * 1.2)))
+        scale = target_h / subject.height
+        new_h = target_h
+        new_w = max(1, int(subject.width * scale))
 
-    new_w = max(1, int(subject.width * scale))
-    new_h = max(1, int(subject.height * scale))
     subject = subject.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    print(f"[nav_icon] aspect={aspect:.2f}, scale={scale:.3f}, resized={new_w}x{new_h}", flush=True)
 
-    # bbox 中心对齐圆心
-    bbox_cx_px = int((bx + bw / 2) * new_w)
-    bbox_cy_px = int((by + bh / 2) * new_h)
-    subj_x = CENTER[0] - bbox_cx_px
-    subj_y = CENTER[1] - bbox_cy_px
-
-    # split_y = CANVAS_H：不做圆形裁切，主体完整显示
-    split_y = CANVAS_H
-
-    # 区域蒙版：split_y 之上保留原始 alpha，之下按圆形裁切
-    circle_m = circle_mask(CANVAS_W, CANVAS_H, *CENTER, RADIUS)
+    # 定位：主体 bbox 中心对齐圆心，水平居中，垂直居中
+    # 底部做 alpha 渐变淡出（不依赖圆形遮罩），顶部自由展示
+    subj_x = CENTER[0] - new_w // 2
+    subj_y = CENTER[1] - new_h // 2
 
     subj_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
     subj_layer.paste(subject, (subj_x, subj_y), subject)
 
-    # Debug: 在合成画布上绘制 split 预览
+    # Debug 预览
     _d = subj_layer.copy()
     _dbg_draw = ImageDraw.Draw(_d)
-    _dbg_draw.line([(0, split_y), (CANVAS_W, split_y)], fill=(255, 0, 0, 255), width=2)
-    _dbg_draw.text((4, split_y - 16), f"split_y={split_y} ratio={split_ratio:.2f}", fill=(255, 0, 0, 255))
     _dbg_bg = Image.new("RGBA", (CANVAS_W, CANVAS_H), (255, 255, 255, 255))
     _dbg_bg.alpha_composite(_d)
     _dbg_bg.save(work / "_split_preview_on_canvas.png", "PNG")
 
+    # split_y：将 split_ratio 映射到缩放后主体在画布上的像素位置
+    # split_ratio=0: 主体顶端, =1: 主体底端
+    split_y_raw = subj_y + int(new_h * split_ratio)
+    # 夹在圆心 ± RADIUS//2 范围内，防止极端值
+    split_y = max(CENTER[1] - RADIUS // 2, min(CENTER[1] + RADIUS // 2, split_y_raw))
+    split_y = max(1, min(CANVAS_H - 2, split_y))
+
+    # 圆形底部
+    circle_bottom = CENTER[1] + RADIUS  # 99 + 69 = 168
+
     subj_arr = np.array(subj_layer)
-    circle_arr = np.array(circle_m, dtype=np.float32) / 255.0
+    h, w = subj_arr.shape[:2]
 
-    mult = np.ones((CANVAS_H, CANVAS_W), dtype=np.float32)
-    mult[split_y:, :] = circle_arr[split_y:, :]
+    # === 渐变遮罩：只作用于圆外区域 ===
+    # 圆内保持完全不透明，圆外 y=74-142 区间渐变淡出
+    circle_m = np.array(circle_mask(CANVAS_W, CANVAS_H, *CENTER, RADIUS), dtype=np.float32) / 255.0
+    
+    # 1. 渐变遮罩：y < 74 = 1.0, y = 74-142 = 渐变 1.0→0, y > 142 = 0
+    gradient = np.zeros((h, w), dtype=np.float32)
+    fade_start, fade_end = 74, 142
+    gradient[:fade_start, :] = 1.0  # y < 74 = 1.0
+    grad = np.linspace(1.0, 0.0, fade_end - fade_start + 1, dtype=np.float32)
+    gradient[fade_start:fade_end + 1, :] = grad[:, None]
+    # y > 142 保持 0（已初始化为 0）
 
-    subj_arr[:, :, 3] = (subj_arr[:, :, 3].astype(np.float32) * mult).astype(np.uint8)
+    # 2. 圆形遮罩：用距离公式严格判定（圆内 = 1.0，圆外/边界 = 0）
+    cy_arr, cx_arr = np.ogrid[:h, :w]
+    dist_arr = np.sqrt((cx_arr - CENTER[0])**2 + (cy_arr - CENTER[1])**2)
+    circle_mask_arr = np.where(dist_arr < RADIUS, 1.0, 0.0)
+
+    # 3. 合并：圆内保持 1.0，圆外应用渐变
+    final_mask = np.where(circle_mask_arr == 1.0, 1.0, gradient)
+
+    # 4. y > fade_end 圆外强制置 0（修复左下角主体露出问题）
+    final_mask[fade_end + 1:, :] = circle_mask_arr[fade_end + 1:, :]
+    
+    # 4. 应用 mask 到 alpha 通道
+    subj_arr[:, :, 3] = (subj_arr[:, :, 3].astype(np.float32) * final_mask).astype(np.uint8)
     subj_layer = Image.fromarray(subj_arr, "RGBA")
+
+    # Debug: 保存应用 mask 后的主体层
+    subj_layer.save(work / "_split_preview_subj_masked.png", "PNG")
+    print(f"[nav_icon] fade={fade_start}~{fade_end} (outside circle only)", flush=True)
+
     canvas.alpha_composite(subj_layer)
 
     # 5. 贴艺术字
@@ -676,14 +888,16 @@ def compose(
         art_rgba_path = ensure_transparent_png(text_art_path, work)
         art = Image.open(art_rgba_path).convert("RGBA")
 
-        # 缩放：宽度不超过圆直径的 80%
-        max_art_w = int(RADIUS * 2 * 0.8)
-        if art.width > max_art_w:
-            art = art.resize((max_art_w, int(art.height * max_art_w / art.width)), Image.Resampling.LANCZOS)
+        # 艺术字安全区：x=40-209, y=126-179
+        ART_SAFE_X_MIN, ART_SAFE_X_MAX = 40, 209
+        ART_SAFE_Y_MIN, ART_SAFE_Y_MAX = 126, 179
+        ART_SAFE_CENTER_X = (ART_SAFE_X_MIN + ART_SAFE_X_MAX) / 2  # 124.5
+        ART_SAFE_CENTER_Y = (ART_SAFE_Y_MIN + ART_SAFE_Y_MAX) / 2  # 152.5
+        ART_SAFE_W = ART_SAFE_X_MAX - ART_SAFE_X_MIN  # 169
+        ART_SAFE_H = ART_SAFE_Y_MAX - ART_SAFE_Y_MIN  # 53
 
-        # 位置：水平居中，垂直在圆心下方 radius * 0.65
-        art_x = CENTER[0] - art.width // 2
-        art_y = CENTER[1] + int(RADIUS * TEXT_ART_Y_RATIO) - art.height // 2
+        # 裁切空白、等比缩放、中心对齐安全区
+        art, art_x, art_y = crop_blank_and_scale(art, ART_SAFE_W, ART_SAFE_H, ART_SAFE_CENTER_X, ART_SAFE_CENTER_Y)
 
         art_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
         art_layer.paste(art, (art_x, art_y), art)

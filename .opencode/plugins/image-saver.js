@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { execFile } from "child_process";
+import { fileURLToPath } from "url";
 
-const pluginDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const pluginDir = path.dirname(fileURLToPath(import.meta.url));
 const opencodeDir = path.resolve(pluginDir, "..");
 const projectRoot = path.resolve(opencodeDir, "..");
 

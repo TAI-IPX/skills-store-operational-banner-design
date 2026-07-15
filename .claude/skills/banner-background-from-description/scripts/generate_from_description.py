@@ -17,6 +17,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -1362,13 +1363,28 @@ def _load_prompt_library_examples(n: int = 3) -> str:
 
 def _prompt_optimizer_request(key: str, model: str, body: dict) -> dict:
     """单次 prompt-optimizer 请求；成功返回 data，HTTPError 抛出供上层处理。"""
-    _base_url = f"{_gemini_models_base()}/{model}:generateContent"
-    url = _base_url if key.strip().startswith("sk-") else f"{_base_url}?key={key}"
-    headers = {"Content-Type": "application/json"}
+    _base_url = _gemini_models_base()
+    path = f"{model}:generateContent"
+    
     if key.strip().startswith("sk-"):
-        headers["Authorization"] = f"Bearer {key}"
+        # Use Authorization Bearer header for sk- prefixed keys
+        # Ensure the key is ASCII-safe for HTTP headers
+        raw_key = key.strip()
+        # Encode non-ASCII characters in the key for safe HTTP header usage
+        ascii_key = raw_key.encode('ascii', 'ignore').decode('ascii')
+        url = f"{_base_url}/{path}"
+        headers = {"Authorization": f"Bearer {ascii_key}"}
+    else:
+        # URL encode the key for Google AI Studio style API keys
+        # Use quote to properly encode all non-ASCII characters
+        encoded_key = urllib.parse.quote(key.encode('utf-8'), safe='')
+        url = f"{_base_url}?key={encoded_key}"
+        headers = {}
+    
+    headers["Content-Type"] = "application/json"
     if "packyapi.com" in (os.environ.get("GOOGLE_GEMINI_BASE_URL") or ""):
         headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode("utf-8"),

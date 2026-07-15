@@ -689,6 +689,13 @@ LAYOUT_BY_PRESET: dict[str, dict] = {
         "text_art_rect": (30, 30, 300, 240),  # (x, y, w, h) 艺术字区域 x=30~330, y=30~270
         "text_art_backdrop": False,
         "no_text": True,  # 主标题+副标题均由艺术字图承载，不渲染普通文字
+        # 40% 黑色渐变：覆盖文字区左半段（水平，左黑→右透明），确保艺术字清晰可读
+        "gradient_rect": (370, 300),  # 渐变区域宽370px × 高300px，从画布左边缘开始
+        "gradient_rect_x": 0,
+        "gradient_rect_y": 0,
+        "gradient_opacity": 0.4,
+        "gradient_diagonal": False,
+        "gradient_vertical": False,
     },
 }
 
