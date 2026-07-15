@@ -264,7 +264,7 @@ def main():
         if moxingemini_key and moxingemini_key.strip().startswith("sk-"):
             os.environ["GEMINI_API_KEY"] = moxingemini_key
             if not os.environ.get("GEMINI_MODEL"):
-                os.environ["GEMINI_MODEL"] = os.environ.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image")
+                os.environ["GEMINI_MODEL"] = os.environ.get("MOXINGEMINI_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image")
         else:
             print("Error: 使用 -moxingemini 时请在 .env 中设置 MOXINGEMINI_API_KEY（且以 sk- 开头）", file=sys.stderr)
             sys.exit(1)

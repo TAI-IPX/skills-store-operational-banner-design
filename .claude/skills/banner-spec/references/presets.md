@@ -17,7 +17,7 @@
 | 商店移动端noti700x300 | 700 | 300 | 商店移动端通知 700×300（`商店移动端noti700x300.png`）：画布 700×300px，全画布安全区 x=0–700 y=0–300，无文字填充，无遮罩 |
 | shop_mobile_generative_ui_cover_1536 | 1536 | 1024 | 商店移动端生成式UI封面1536x1024（`商店移动端生成式UI封面1536x1024.png`）：画布 1536×1024px，安全区 x=366–1170 y=0–1024，无文字填充，无遮罩 |
 | shop_play_card_1920 | 1920 | 550 | **商店畅玩卡1920\*550**（`商店畅玩卡1920x550.png`）：安全区 x=360–1560 y=10–540；对话框叠加区 x=516–1021 y=363–410；文字艺术字区 x=516–1026 y=90–360（510×270px）；无文字填充、无遮罩；对话框由 PIL 程序化绘制六边形横幅，颜色自动从背景取色 |
-| shop_mobile_nav_icon | 249 | 198 | **手机商店导航栏icon 249×198**（`手机商店导航栏icon 249x198.png`）：画布 249×198px，安全区全画布；三层结构：底层圆形（圆心画布中心，半径 H×0.35=69px 直径≤画布高70%整圆可见，从主体提取主色/ Gemini Vision 分析配色 径向渐变）→ 中层主体透明PNG（圆心对齐，Gemini 检测主体结构确定分界线，上半身自由/下半身圆形裁切）→ 上层艺术字透明PNG（GPT 生成 + BiRefNet 子进程抠图，圆形下半部，水平居中）；**入口: `compose_nav_icon.py --subject <图> -P <文字>`，勿走 run_all_presets 全管线（Step0a/0b/Step1 对 nav icon 全是废步骤，浪费 API）** |
+| shop_mobile_floating_window | 249 | 198 | **手机商店悬浮窗 249×198**（`手机商店悬浮窗 249x198.png`）：画布 249×198px，安全区全画布；三层结构：底层圆形（圆心画布中心，半径 H×0.35=69px 直径≤画布高70%整圆可见，从主体提取主色/ Gemini Vision 分析配色 径向渐变）→ 中层主体透明PNG（圆心对齐，Gemini 检测主体结构确定分界线，上半身自由/下半身圆形裁切）→ 上层艺术字透明PNG（GPT 生成 + BiRefNet 子进程抠图，圆形下半部，水平居中）；**入口: `compose_floating_window.py --subject <图> -P <文字>`，勿走 run_all_presets 全管线（Step0a/0b/Step1 对悬浮窗全是废步骤，浪费 API）** |
 
 ## Legend zone 系列（无文字，部分含 logo 区）
 
@@ -42,14 +42,14 @@
 ## 规范分组（-g）
 
 分组定义在 `spec.py` 的 `GENRE_PRESETS`。
-- **商店日常**：default、wide、card-500、card-304、strip、push112*112、PC商店push324x160、shop_mobile_generative_ui_cover_1536、shop_mobile_nav_icon。
-- **商店移动端日常**：shop_mobile_banner_984、shop_mobile_card_650、shop_mobile_strip_720、商店移动端noti700x300、shop_mobile_generative_ui_cover_1536、shop_mobile_nav_icon。
+- **商店日常**：default、wide、card-500、card-304、strip、push112*112、PC商店push324x160、shop_mobile_generative_ui_cover_1536、shop_mobile_floating_window。
+- **商店移动端日常**：shop_mobile_banner_984、shop_mobile_card_650、shop_mobile_strip_720、商店移动端noti700x300、shop_mobile_generative_ui_cover_1536、shop_mobile_floating_window。
 - **开放平台**：open_platform_banner_2560、open_platform_wechat_banner_900。尺寸与安全区见下「开放平台 分组规范」；配色与风格见同节「Banner 颜色参考」与「风格与素材参考」。
 - **LZ全部**：仅 Legend zone 系列（共 13 个预设）。logo 为透明 PNG 则直接等比缩放，非透明则需抠图后等比缩放。
 - **商店畅玩卡1920\*550**：shop_play_card_1920（单规格）。无文字，含对话框六边形横幅 + 文字艺术字粘贴区。
 - **PC商店push**：PC商店push324x160（单规格）。无文字，无遮罩。
 - **商店移动端noti**：商店移动端noti700x300（单规格）。无文字，无遮罩。
-- **商店导航栏icon**：shop_mobile_nav_icon（单规格）。三层合成：圆形背景+主体透明PNG+艺术字透明PNG。
+- **手机商店悬浮窗**：shop_mobile_floating_window（单规格）。三层合成：圆形背景+主体透明PNG+艺术字透明PNG。
 
 ---
 

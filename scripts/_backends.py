@@ -92,7 +92,7 @@ BACKENDS: dict = {
         "mask": True,
         "api_key": "MOXINGEMINI_API_KEY",
         "base_url_key": "MOXINGEMINI_BASE_URL",
-        "model": os.environ.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview"),
+        "model": os.environ.get("MOXINGEMINI_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image"),
         "t2i_endpoint": None,
         "edit_endpoint": "/v1/chat/completions",
     },

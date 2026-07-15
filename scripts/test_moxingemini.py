@@ -19,11 +19,7 @@ if model_env:
     models = [model_env]
 else:
     models = [
-        "[特价次卡]gemini-3.1-pro-preview-think",
-        "[特价次卡]gemini-3.1-pro-preview",
-        "[特价次卡]gemini-2.5-pro",
         "[次]gemini-3.1-flash-image-preview",
-        "[次]gemini-3.1-flash-image",
         "[次]gemini-3-pro-image",
         "[次]gemini-3-pro-image-preview",
     ]

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-手机商店导航栏icon 96x96 三层合成脚本
+手机商店悬浮窗 249x198 三层合成脚本
 
 结构：
-1. 底层圆形：圆心在画布中心 (48, 48)，直径 68px（半径 34）
+1. 底层圆形：圆心在画布中心 (124, 99)，半径适配画布高度（保证整圆完整显示）
    填充：从主体提取主色 + Gemini Vision 分析 -> 径向渐变(中心主色 -> 边缘亮色)
 2. 中层主体：透明 PNG，圆心对齐圆形圆心，底部被圆形裁切、顶部可超出
 3. 上层艺术字：透明 PNG，GPT 生成 -> BiRefNet 抠图，位于圆形下半部，水平居中
-   安全区：x=8-88, y=59-86
 
 支持：
 - 主体/艺术字非透明时自动 BiRefNet 抠图
@@ -55,18 +54,11 @@ def _load_dotenv():
 _load_dotenv()
 
 # ---------- 常量 ----------
-CANVAS_W, CANVAS_H = 96, 96
-CENTER = (CANVAS_W // 2, CANVAS_H // 2)          # (48, 48)
-RADIUS = 34                                       # 圆半径，直径 68px
-SUBJECT_SCALE = 1.0                               # 主体高度 = 圆直径 (68px)
-
-# 艺术字安全区
-ART_SAFE_X_MIN, ART_SAFE_X_MAX = 8, 88
-ART_SAFE_Y_MIN, ART_SAFE_Y_MAX = 59, 86
-ART_SAFE_CENTER_X = (ART_SAFE_X_MIN + ART_SAFE_X_MAX) / 2  # 48
-ART_SAFE_CENTER_Y = (ART_SAFE_Y_MIN + ART_SAFE_Y_MAX) / 2  # 72.5
-ART_SAFE_W = ART_SAFE_X_MAX - ART_SAFE_X_MIN  # 80
-ART_SAFE_H = ART_SAFE_Y_MAX - ART_SAFE_Y_MIN  # 27
+CANVAS_W, CANVAS_H = 249, 198
+CENTER = (CANVAS_W // 2, CANVAS_H // 2)          # (124, 99)
+RADIUS = int(CANVAS_H * 0.35)                   # 69px — 直径≤画布高70%，整圆完整可见
+SUBJECT_SCALE = 1.0                             # 主体高度 = 圆直径 (240px)
+TEXT_ART_Y_RATIO = 0.65                         # 圆心y + 半径 * 0.65
 
 
 # ---------- 工具函数 ----------
@@ -99,7 +91,7 @@ def circle_mask(w: int, h: int, cx: int, cy: int, r: int) -> Image.Image:
     return mask
 
 
-def feathered_circle_mask(w: int, h: int, cx: int, cy: int, r: int, feather: int = 6) -> Image.Image:
+def feathered_circle_mask(w: int, h: int, cx: int, cy: int, r: int, feather: int = 12) -> Image.Image:
     """
     返回带羽化边缘的圆形蒙版（单通道 L）。
     - 圆内 r-feather 以内：255（完全不透明）
@@ -112,16 +104,20 @@ def feathered_circle_mask(w: int, h: int, cx: int, cy: int, r: int, feather: int
     dist = np.sqrt((x_idx - cx) ** 2 + (y_idx - cy) ** 2)
 
     inner_r = max(1, r - feather)
+    # 内部完全不透明
     mask_arr[dist <= inner_r] = 1.0
+    # 羽化区域线性过渡
     feather_zone = (dist > inner_r) & (dist <= r)
     if feather_zone.any():
         mask_arr[feather_zone] = 1.0 - (dist[feather_zone] - inner_r) / feather
+    # 外部保持 0
     return Image.fromarray((mask_arr * 255).astype(np.uint8), mode="L")
 
 
 def auto_matte_birefnet(input_path: Path, output_path: Path) -> bool:
     """调用 BiRefNet 抠图，成功返回 True"""
     try:
+        # 复用项目已有的 BiRefNet 模块
         from birefnet_matting import load_birefnet_matting, extract_alpha_pil
         model = load_birefnet_matting()
         img = Image.open(input_path).convert("RGB")
@@ -190,6 +186,58 @@ def crop_blank_and_scale(img: Image.Image, max_w: int, max_h: int, center_x: flo
     top = int(round(center_y - new_h / 2))
 
     return img, left, top
+
+
+def render_text_art_pil(text: str, max_w: int, max_h: int, out_path: Path) -> Path:
+    """PIL 简易渲染：白字 + 黑描边 -> 透明底 PNG（兜底方案，非书法效果）"""
+    from PIL import ImageFont
+    # 尝试加载微软雅黑 Bold
+    font_path = None
+    for p in [r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msyh.ttc", "/System/Library/Fonts/PingFang.ttc"]:
+        if Path(p).exists():
+            font_path = p
+            break
+    if not font_path:
+        font_path = ImageFont.load_default()
+
+    # 字号自适应
+    font_size = 60
+    font = ImageFont.truetype(font_path, font_size) if font_path != ImageFont.load_default() else ImageFont.load_default()
+
+    # 计算文本尺寸
+    dummy = Image.new("RGBA", (1, 1))
+    d = ImageDraw.Draw(dummy)
+    bbox = d.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    # 缩放以适配 max_w, max_h
+    scale = min(max_w / tw, max_h / th, 1.0)
+    font_size = max(12, int(font_size * scale))
+    font = ImageFont.truetype(font_path, font_size) if font_path != ImageFont.load_default() else ImageFont.load_default()
+
+    # 重新计算
+    bbox = d.textbbox((0, 0), text, font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    # 创建透明画布
+    pad = 8
+    canvas = Image.new("RGBA", (tw + pad * 2, th + pad * 2), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # 描边：画 4 个方向偏移的黑字
+    for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)]:
+        draw.text((pad + dx, pad + dy), text, font=font, fill=(0, 0, 0, 255))
+    # 主字：白色
+    draw.text((pad, pad), text, font=font, fill=(255, 215, 0, 255))  # 金色
+
+    # 裁切透明边
+    bbox = canvas.getbbox()
+    if bbox:
+        canvas = canvas.crop(bbox)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out_path, "PNG")
+    return out_path
 
 
 # ---------- Gemini Vision 分析 ----------
@@ -265,6 +313,7 @@ def _analyze_subject_vision(subject_path: Path) -> dict:
             if not content:
                 continue
 
+            # 解析 JSON（可能包裹在 markdown 代码块中）
             content = content.strip()
             if content.startswith("```"):
                 content = re.sub(r'^```(?:json)?\s*', '', content)
@@ -278,17 +327,16 @@ def _analyze_subject_vision(subject_path: Path) -> dict:
             }
         except urllib.error.HTTPError as e:
             if e.code in (403, 404):
-                print(f"[nav_icon] Vision model '{model}' not available (HTTP {e.code}), trying next...", file=sys.stderr)
+                print(f"[floating_window] Vision model '{model}' not available (HTTP {e.code}), trying next...", file=sys.stderr)
                 continue
-            print(f"[nav_icon] Vision attempt failed with model '{model}': {e}", file=sys.stderr)
+            print(f"[floating_window] Vision attempt failed with model '{model}': {e}", file=sys.stderr)
         except Exception as e:
-            print(f"[nav_icon] Vision attempt failed with model '{model}': {e}", file=sys.stderr)
+            print(f"[floating_window] Vision attempt failed with model '{model}': {e}", file=sys.stderr)
 
-    print(f"[nav_icon] Vision 分析失败 ({be['name']}): all models exhausted", file=sys.stderr)
+    print(f"[floating_window] Vision 分析失败 ({be['name']}): all models exhausted", file=sys.stderr)
     return {}
 
 
-# ---------- 主体结构检测（Vision + BiRefNet 兜底） ----------
 def _detect_subject_split(subject_path: Path) -> dict:
     """
     用 Gemini Vision 理解主体结构，返回分界比例 + 主体在图片内的边界框。
@@ -363,11 +411,10 @@ def _detect_subject_split(subject_path: Path) -> dict:
         except urllib.error.HTTPError as e:
             if e.code in (403, 404):
                 continue
-            print(f"[nav_icon] Subject split detection failed with model '{model}': {e}", file=sys.stderr)
         except Exception:
             pass
 
-    print(f"[nav_icon] Subject split detection failed ({be['name']})", file=sys.stderr)
+    print(f"[floating_window] Subject split detection failed ({be['name']})", file=sys.stderr)
     return {}
 
 
@@ -378,31 +425,35 @@ def _detect_subject_split_birefnet(subject_path: Path) -> dict:
     """
     try:
         # 延迟导入避免未安装时直接报错
-        from birefnet_matting import extract_alpha_pil, load_birefnet_matting
+        from .claude.skills.banner_background_from_image.scripts.birefnet_matting import extract_alpha_pil, load_birefnet_matting
     except ImportError:
+        # 尝试相对路径导入（项目根目录下运行时）
         try:
             import sys
-            sys.path.insert(0, str(ROOT / ".claude" / "skills" / "banner-background-from-image" / "scripts"))
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".claude" / "skills" / "banner-background-from-image" / "scripts"))
             from birefnet_matting import extract_alpha_pil, load_birefnet_matting
         except ImportError:
-            print("[nav_icon] BiRefNet fallback: module not available", file=sys.stderr)
+            print("[floating_window] BiRefNet fallback: module not available", file=sys.stderr)
             return {}
 
     try:
         img = Image.open(subject_path).convert("RGBA")
         model = load_birefnet_matting()
         alpha = extract_alpha_pil(img, model=model)
+        # alpha 是 0-255，转为 numpy 计算 bbox
         arr = np.array(alpha)
+        # 阈值：>10 视为前景
         rows = np.any(arr > 10, axis=1)
         cols = np.any(arr > 10, axis=0)
         if not rows.any() or not cols.any():
-            print("[nav_icon] BiRefNet fallback: empty alpha", file=sys.stderr)
+            print("[floating_window] BiRefNet fallback: empty alpha", file=sys.stderr)
             return {}
 
         r0, r1 = np.where(rows)[0][[0, -1]]
         c0, c1 = np.where(cols)[0][[0, -1]]
         h, w = arr.shape
 
+        # 归一化 bbox
         bbox = {
             "x": float(c0) / w,
             "y": float(r0) / h,
@@ -411,8 +462,13 @@ def _detect_subject_split_birefnet(subject_path: Path) -> dict:
         }
 
         # split_ratio：主体垂直中心相对于主体顶部的比例
+        # 垂直中心 = (r0 + r1/2) / h，即主体中心在整图中的 y 归一化
+        # split_ratio = (center_y - r0/h) / (r1/h - r0/h) = 0.5（主体中心）
+        # 我们用主体中心作为分界，对应 split_ratio=0.5
+        # 也可以用更保守的值（如 0.4）避免切到头部
         split_ratio = 0.5
 
+        # 推断类型：根据宽高比
         aspect = bbox["w"] / bbox["h"] if bbox["h"] > 0 else 1
         if aspect > 1.3:
             stype = "object_wide"
@@ -428,8 +484,35 @@ def _detect_subject_split_birefnet(subject_path: Path) -> dict:
             "key_parts": f"bbox_center_y={bbox['y'] + bbox['h']/2:.2f}",
         }
     except Exception as e:
-        print(f"[nav_icon] BiRefNet fallback error: {e}", file=sys.stderr)
+        print(f"[floating_window] BiRefNet fallback error: {e}", file=sys.stderr)
         return {}
+
+
+def crop_blank_and_scale(art: Image.Image, safe_w: int, safe_h: int, center_x: float, center_y: float) -> tuple[Image.Image, int, int]:
+    """
+    裁切透明空白、等比缩放到安全区、返回(处理后的图, 放置x, 放置y)
+    """
+    # 1. 检测非透明像素边界
+    arr = np.array(art)
+    alpha = arr[:, :, 3]
+    rows = np.any(alpha > 0, axis=1)
+    cols = np.any(alpha > 0, axis=0)
+    if not rows.any() or not cols.any():
+        return art, 0, 0
+    r0, r1 = np.where(rows)[0][[0, -1]]
+    c0, c1 = np.where(cols)[0][[0, -1]]
+    art = art.crop((c0, r0, c1 + 1, r1 + 1))
+
+    # 2. 等比缩放适应安全区
+    scale = min(safe_w / art.width, safe_h / art.height)
+    new_w = max(1, int(art.width * scale))
+    new_h = max(1, int(art.height * scale))
+    art = art.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # 3. 计算放置位置：图像中心对齐安全区中心
+    x = int(center_x - new_w / 2)
+    y = int(center_y - new_h / 2)
+    return art, x, y
 
 
 def _draw_split_preview(subject_rgba: Image.Image, split_info: dict, output_path: Path) -> None:
@@ -438,6 +521,7 @@ def _draw_split_preview(subject_rgba: Image.Image, split_info: dict, output_path
     保存到 output_path。
     """
     preview = subject_rgba.copy()
+    # 铺白底以便看清
     bg = Image.new("RGBA", preview.size, (255, 255, 255, 255))
     bg.alpha_composite(preview)
     draw = ImageDraw.Draw(bg)
@@ -446,21 +530,24 @@ def _draw_split_preview(subject_rgba: Image.Image, split_info: dict, output_path
     bbox = split_info.get("bbox", {"x": 0, "y": 0, "w": 1, "h": 1})
     ratio = split_info.get("ratio", 0.45)
 
+    # 红色框出主体 bbox
     rx = int(bbox["x"] * w)
     ry = int(bbox["y"] * h)
     rw = int(bbox["w"] * w)
     rh = int(bbox["h"] * h)
     draw.rectangle([rx, ry, rx + rw, ry + rh], outline=(255, 0, 0, 255), width=2)
 
+    # 红色横线标注 split_y
     split_px = int(ratio * h)
     draw.line([(0, split_px), (w, split_px)], fill=(255, 0, 0, 255), width=2)
 
+    # 标注文字
     label = f"split_ratio={ratio:.2f}  type={split_info.get('type','?')}"
     draw.text((4, 2), label, fill=(255, 0, 0, 255))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bg.save(output_path, "PNG")
-    print(f"[nav_icon] split preview: {output_path}", flush=True)
+    print(f"[floating_window] split preview: {output_path}", flush=True)
 
 
 # ---------- 艺术字生成 ----------
@@ -503,10 +590,10 @@ def _generate_text_art_t2i(prompt: str, out_path: Path, key: str, base: str, mod
                 from moxingpt_images_api import generate_image as _moxin_t2i
                 out = _moxin_t2i(prompt, str(out_path), model=model)
                 if out and Path(str(out)).is_file():
-                    print(f"[nav_icon] text-art moxin {model} success", flush=True)
+                    print(f"[floating_window] text-art moxin {model} success", flush=True)
                     return True
             except Exception as e:
-                print(f"[nav_icon] moxin_images_api {model}: {e}", file=sys.stderr)
+                print(f"[floating_window] moxin_images_api {model}: {e}", file=sys.stderr)
 
         # 备选：标准 OpenAI 兼容 /v1/images/generations
         body = json.dumps({
@@ -532,8 +619,7 @@ def _generate_text_art_t2i(prompt: str, out_path: Path, key: str, base: str, mod
                 b64 = None
                 for item in (result.get("data") or []):
                     b64 = item.get("b64_json")
-                    if b64:
-                        break
+                    if b64: break
                     img_url = item.get("url")
                     if img_url:
                         img_req = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
@@ -544,7 +630,7 @@ def _generate_text_art_t2i(prompt: str, out_path: Path, key: str, base: str, mod
                     img = Image.open(BytesIO(base64.b64decode(b64)))
                     out_path.parent.mkdir(parents=True, exist_ok=True)
                     img.save(out_path, "PNG")
-                    print(f"[nav_icon] text-art t2i {model} success", flush=True)
+                    print(f"[floating_window] text-art t2i {model} success", flush=True)
                     return True
             except urllib.error.HTTPError as e:
                 if e.code in (403, 404):
@@ -565,7 +651,7 @@ def _birefnet_extract_text(image_path: Path) -> Path:
     """
     extract_script = ROOT / "scripts" / "extract_subject_birefnet.py"
     if not extract_script.is_file():
-        print(f"[nav_icon] BiRefNet script not found: {extract_script}", file=sys.stderr)
+        print(f"[floating_window] BiRefNet script not found: {extract_script}", file=sys.stderr)
         return image_path
 
     tmp = image_path.parent / f"_br_{image_path.stem}.png"
@@ -580,16 +666,14 @@ def _birefnet_extract_text(image_path: Path) -> Path:
         if r.returncode == 0 and tmp.is_file():
             import shutil
             shutil.move(str(tmp), str(image_path))
-            print(f"[nav_icon] BiRefNet 抠字完成: {image_path.name}", flush=True)
+            print(f"[floating_window] BiRefNet 抠字完成: {image_path.name}", flush=True)
         else:
-            print(f"[nav_icon] BiRefNet 抠字失败(rc={r.returncode})，保留原图", file=sys.stderr)
+            print(f"[floating_window] BiRefNet 抠字失败(rc={r.returncode})，保留原图", file=sys.stderr)
     except Exception as e:
-        print(f"[nav_icon] BiRefNet 抠字异常: {e}", file=sys.stderr)
+        print(f"[floating_window] BiRefNet 抠字异常: {e}", file=sys.stderr)
     finally:
-        try:
-            tmp.unlink(missing_ok=True)
-        except:
-            pass
+        try: tmp.unlink(missing_ok=True)
+        except: pass
     return image_path
 
 
@@ -602,6 +686,7 @@ def generate_title_art_from_prompt(prompt: str, out_path: Path) -> Path:
     work = out_path.parent
     work.mkdir(parents=True, exist_ok=True)
 
+    # 后端列表：(name, env_key_prefix, base_url, model)
     backends = [
         ("moxingpt", "MOXINGPT", "https://www.moxin.studio", "gpt-image-2-base64"),
         ("xingchengpt", "XINGCHENGGPT", "https://api.centos.hk", "gpt-image-2"),
@@ -616,65 +701,22 @@ def generate_title_art_from_prompt(prompt: str, out_path: Path) -> Path:
         model_env = os.environ.get(f"{prefix}_MODEL", model).strip()
         raw_path = work / f"_text_art_raw_{name}.png"
         if _generate_text_art_t2i(prompt, raw_path, key, base, model_env):
-            print(f"[nav_icon] text art generated via {name}", flush=True)
+            print(f"[floating_window] text art generated via {name}", flush=True)
             try:
                 _birefnet_extract_text(raw_path)
             except Exception as e:
-                print(f"[nav_icon] BiRefNet failed, using raw: {e}", file=sys.stderr)
+                print(f"[floating_window] BiRefNet failed, using raw: {e}", file=sys.stderr)
             raw_path.rename(out_path)
             return out_path
 
     # 兜底：PIL 渲染
-    print("[nav_icon] 所有后端不可用，回退 PIL 渲染", file=sys.stderr)
+    print("[floating_window] 所有后端不可用，回退 PIL 渲染", file=sys.stderr)
     import re
     text = re.sub(r'[，。！？、；：\u201c\u201d\u2018\u2019\s]+$', '', prompt)
     text = re.split(r'[，。！？、；：\s]', text)[-1]
     if not text:
         text = "游戏中心"
     return render_text_art_pil(text, int(RADIUS * 2 * 0.8), RADIUS, out_path)
-
-
-def render_text_art_pil(text: str, max_w: int, max_h: int, out_path: Path) -> Path:
-    """PIL 简易渲染：白字 + 黑描边 -> 透明底 PNG（兜底方案，非书法效果）"""
-    from PIL import ImageFont
-    font_path = None
-    for p in [r"C:\Windows\Fonts\msyhbd.ttc", r"C:\Windows\Fonts\msyh.ttc", "/System/Library/Fonts/PingFang.ttc"]:
-        if Path(p).exists():
-            font_path = p
-            break
-    if not font_path:
-        font_path = ImageFont.load_default()
-
-    font_size = 40
-    font = ImageFont.truetype(font_path, font_size) if font_path != ImageFont.load_default() else ImageFont.load_default()
-
-    dummy = Image.new("RGBA", (1, 1))
-    d = ImageDraw.Draw(dummy)
-    bbox = d.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-    scale = min(max_w / tw, max_h / th, 1.0)
-    font_size = max(12, int(font_size * scale))
-    font = ImageFont.truetype(font_path, font_size) if font_path != ImageFont.load_default() else ImageFont.load_default()
-
-    bbox = d.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-
-    pad = 6
-    canvas = Image.new("RGBA", (tw + pad * 2, th + pad * 2), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-
-    for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)]:
-        draw.text((pad + dx, pad + dy), text, font=font, fill=(0, 0, 0, 255))
-    draw.text((pad, pad), text, font=font, fill=(255, 215, 0, 255))  # 金色
-
-    bbox = canvas.getbbox()
-    if bbox:
-        canvas = canvas.crop(bbox)
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    canvas.save(out_path, "PNG")
-    return out_path
 
 
 # ---------- 主合成 ----------
@@ -684,13 +726,13 @@ def compose(
     text_art_path: Path | None = None,
     text_art_prompt: str | None = None,
 ) -> None:
-    work = output_path.parent / "_work_nav_icon"
+    work = output_path.parent / "_work_nav"
     work.mkdir(parents=True, exist_ok=True)
 
     # 0. Gemini Vision 分析主体图（风格/色彩/描述）
     vision_info = _analyze_subject_vision(subject_path)
     if vision_info:
-        print(f"[nav_icon] Vision: style={vision_info.get('style','')[:60]}...", flush=True)
+        print(f"[floating_window] Vision: style={vision_info.get('style','')[:60]}...", flush=True)
 
     # 1. 确保主体透明 PNG
     subj_rgba_path = ensure_transparent_png(subject_path, work)
@@ -698,6 +740,7 @@ def compose(
 
     # 2. 提取主色做圆形渐变（Vision 优先，其次中位数）
     if vision_info and vision_info.get("colors"):
+        # 取 Vision 推荐的前两个颜色
         colors = vision_info["colors"]
         if len(colors) >= 2:
             dom_color = tuple(int(colors[0].lstrip("#")[i:i+2], 16) for i in (0, 2, 4))
@@ -717,19 +760,21 @@ def compose(
     # 4. Gemini 检测主体结构（bbox + split_ratio）
     split_info = _detect_subject_split(subject_path)
     if not split_info:
-        print("[nav_icon] Vision split failed, trying BiRefNet fallback...", flush=True)
+        print("[floating_window] Vision split failed, trying BiRefNet fallback...", flush=True)
+        # Vision 失败时，用 BiRefNet 抠图得到的 alpha 计算真实 bbox
         split_info = _detect_subject_split_birefnet(subject_path)
     if not split_info:
         split_info = {"type": "unknown", "ratio": 0.45, "bbox": {"x": 0, "y": 0, "w": 1, "h": 1}}
     split_ratio = split_info.get("ratio", 0.45)
     stype = split_info.get("type", "?")
     key_parts = split_info.get("key_parts", "")
-    print(f"[nav_icon] Subject: {stype}, ratio={split_ratio:.2f}, parts=({key_parts[:60]})", flush=True)
+    print(f"[floating_window] Subject: {stype}, ratio={split_ratio:.2f}, parts=({key_parts[:60]})", flush=True)
 
-    # Debug: 在主体图上绘制 split 预览
+    # Debug: 在主体图上绘制 split 预览（红色框 = bbox，红色横线 = split_y）
+    # 这里用的是 BiRefNet 抠图后的原始尺寸 subject（尚未画布缩放）
     _draw_split_preview(subject, split_info, work / "_split_preview_before.png")
 
-    # 5. tight-crop 去透明边距（防止原图含大量透明边距导致 scale 极小）
+    # 5. tight-crop 去透明边距（防止原图含大量透明边距导致 scale 极小，如 8192×8192 的 PNG）
     arr_tc = np.array(subject)
     alpha_tc = arr_tc[:, :, 3]
     rows_tc = np.any(alpha_tc > 10, axis=1)
@@ -738,19 +783,21 @@ def compose(
         r0_tc, r1_tc = np.where(rows_tc)[0][[0, -1]]
         c0_tc, c1_tc = np.where(cols_tc)[0][[0, -1]]
         subject = subject.crop((c0_tc, r0_tc, c1_tc + 1, r1_tc + 1))
-        print(f"[nav_icon] tight-crop: {arr_tc.shape[1]}x{arr_tc.shape[0]} → {subject.width}x{subject.height}", flush=True)
+        print(f"[floating_window] tight-crop: {arr_tc.shape[1]}x{arr_tc.shape[0]} → {subject.width}x{subject.height}", flush=True)
 
     # 自适应缩放：根据主体宽高比选择约束轴，确保主体不过度超出画布
-    target_h_cap = CANVAS_H
-    target_h_floor = int(RADIUS * 1.6)  # ~54px 下限
+    # 主体 bbox 中心对齐圆心，底部被圆形遮罩裁切，顶部自由溢出
+    target_h_cap = CANVAS_H  # 最大高度 = 画布高
+    target_h_floor = int(RADIUS * 1.6)  # ~110px 下限
 
     aspect = subject.width / subject.height
     if aspect >= 1.0:
-        # 宽图/方图：以宽度为约束轴（两侧各允许溢出 10px）
-        target_w = CANVAS_W + 20
+        # 宽图/方图：以宽度为约束轴（两侧各允许溢出 20px）
+        target_w = CANVAS_W + 40
         scale = target_w / subject.width
         new_w = target_w
         new_h = max(1, int(subject.height * scale))
+        # 宽图高度也要在合理范围内
         if new_h > target_h_cap:
             scale = target_h_cap / subject.height
             new_h = target_h_cap
@@ -767,7 +814,7 @@ def compose(
         new_w = max(1, int(subject.width * scale))
 
     subject = subject.resize((new_w, new_h), Image.Resampling.LANCZOS)
-    print(f"[nav_icon] aspect={aspect:.2f}, scale={scale:.3f}, resized={new_w}x{new_h}", flush=True)
+    print(f"[floating_window] aspect={aspect:.2f}, scale={scale:.3f}, resized={new_w}x{new_h}", flush=True)
 
     # 定位：主体 bbox 中心对齐圆心，水平居中，垂直居中
     # 底部做 alpha 渐变淡出（不依赖圆形遮罩），顶部自由展示
@@ -785,27 +832,29 @@ def compose(
     _dbg_bg.save(work / "_split_preview_on_canvas.png", "PNG")
 
     # split_y：将 split_ratio 映射到缩放后主体在画布上的像素位置
+    # split_ratio=0: 主体顶端, =1: 主体底端
     split_y_raw = subj_y + int(new_h * split_ratio)
     # 夹在圆心 ± RADIUS//2 范围内，防止极端值
     split_y = max(CENTER[1] - RADIUS // 2, min(CENTER[1] + RADIUS // 2, split_y_raw))
     split_y = max(1, min(CANVAS_H - 2, split_y))
 
     # 圆形底部
-    circle_bottom = CENTER[1] + RADIUS  # 48 + 34 = 82
+    circle_bottom = CENTER[1] + RADIUS  # 99 + 69 = 168
 
     subj_arr = np.array(subj_layer)
     h, w = subj_arr.shape[:2]
 
     # === 渐变遮罩：只作用于圆外区域 ===
-    # 圆内保持完全不透明，圆外 y=30-70 区间渐变淡出
+    # 圆内保持完全不透明，圆外 y=74-142 区间渐变淡出
     circle_m = np.array(circle_mask(CANVAS_W, CANVAS_H, *CENTER, RADIUS), dtype=np.float32) / 255.0
-
-    # 1. 渐变遮罩：y < 30 = 1.0, y = 30-70 = 渐变 1.0→0, y > 70 = 0
+    
+    # 1. 渐变遮罩：y < 74 = 1.0, y = 74-142 = 渐变 1.0→0, y > 142 = 0
     gradient = np.zeros((h, w), dtype=np.float32)
-    fade_start, fade_end = 30, 70
-    gradient[:fade_start, :] = 1.0
+    fade_start, fade_end = 74, 142
+    gradient[:fade_start, :] = 1.0  # y < 74 = 1.0
     grad = np.linspace(1.0, 0.0, fade_end - fade_start + 1, dtype=np.float32)
     gradient[fade_start:fade_end + 1, :] = grad[:, None]
+    # y > 142 保持 0（已初始化为 0）
 
     # 2. 圆形遮罩：用距离公式严格判定（圆内 = 1.0，圆外/边界 = 0）
     cy_arr, cx_arr = np.ogrid[:h, :w]
@@ -817,14 +866,14 @@ def compose(
 
     # 4. y > fade_end 圆外强制置 0（修复左下角主体露出问题）
     final_mask[fade_end + 1:, :] = circle_mask_arr[fade_end + 1:, :]
-
-    # 5. 应用 mask 到 alpha 通道
+    
+    # 4. 应用 mask 到 alpha 通道
     subj_arr[:, :, 3] = (subj_arr[:, :, 3].astype(np.float32) * final_mask).astype(np.uint8)
     subj_layer = Image.fromarray(subj_arr, "RGBA")
 
     # Debug: 保存应用 mask 后的主体层
     subj_layer.save(work / "_split_preview_subj_masked.png", "PNG")
-    print(f"[nav_icon] fade={fade_start}~{fade_end} (outside circle only)", flush=True)
+    print(f"[floating_window] fade={fade_start}~{fade_end} (outside circle only)", flush=True)
 
     canvas.alpha_composite(subj_layer)
 
@@ -833,11 +882,19 @@ def compose(
         enriched_prompt = _build_text_art_prompt(text_art_prompt, vision_info)
         text_art_path = work / "title_art.png"
         generate_title_art_from_prompt(enriched_prompt, text_art_path)
-        print(f"[nav_icon] 艺术字 prompt: {enriched_prompt[:100]}...", flush=True)
+        print(f"[floating_window] 艺术字 prompt: {enriched_prompt[:100]}...", flush=True)
 
     if text_art_path:
         art_rgba_path = ensure_transparent_png(text_art_path, work)
         art = Image.open(art_rgba_path).convert("RGBA")
+
+        # 艺术字安全区：x=40-209, y=126-179
+        ART_SAFE_X_MIN, ART_SAFE_X_MAX = 40, 209
+        ART_SAFE_Y_MIN, ART_SAFE_Y_MAX = 126, 179
+        ART_SAFE_CENTER_X = (ART_SAFE_X_MIN + ART_SAFE_X_MAX) / 2  # 124.5
+        ART_SAFE_CENTER_Y = (ART_SAFE_Y_MIN + ART_SAFE_Y_MAX) / 2  # 152.5
+        ART_SAFE_W = ART_SAFE_X_MAX - ART_SAFE_X_MIN  # 169
+        ART_SAFE_H = ART_SAFE_Y_MAX - ART_SAFE_Y_MIN  # 53
 
         # 裁切空白、等比缩放、中心对齐安全区
         art, art_x, art_y = crop_blank_and_scale(art, ART_SAFE_W, ART_SAFE_H, ART_SAFE_CENTER_X, ART_SAFE_CENTER_Y)
@@ -854,7 +911,7 @@ def compose(
 
 # ---------- CLI ----------
 def main():
-    parser = argparse.ArgumentParser(description="手机商店导航栏icon 96x96 合成")
+    parser = argparse.ArgumentParser(description="手机商店悬浮窗 249x198 合成")
     parser.add_argument("--subject", "-S", required=True, help="主体图片路径（自动抠图）")
     parser.add_argument("--text-art", "-T", default=None, help="艺术字透明 PNG 路径")
     parser.add_argument("--text-art-prompt", "-P", default=None, help="艺术字文本描述（走生成管线）")

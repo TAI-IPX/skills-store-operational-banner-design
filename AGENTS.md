@@ -396,7 +396,7 @@ conn.commit(); conn.close()
 |--------|-----------|------|
 | 商店日常 | run_all_presets.py | 8 个 preset（含生成式UI封面1536x1024） |
 | 商店移动端日常 | run_mobile_presets.py | 4 个 preset |
-| **商店导航栏icon** | **compose_nav_icon.py（专用）** | **1 个 preset（249×198，三层合成）；⚠️ 勿走 run_all_presets，会浪费 Step0a/0b/Step1 API** |
+| **手机商店悬浮窗** | **compose_floating_window.py（专用）** | **1 个 preset（249×198，三层合成）；⚠️ 勿走 run_all_presets，会浪费 Step0a/0b/Step1 API** |
 | 开放平台 | run_all_presets.py | 2 个 preset |
 | **活动长图** | **run_changtu.py** | **1 个 preset（changtu_poster）** |
 | **战报** | **run_battle_report.py** | **1 个 preset（1080px 竖版长图）** |
@@ -433,9 +433,9 @@ py scripts/run_all_presets.py "output/xxx/bg.png" \
   --main-title "主标题" --subtitle "副标题" --output-dir "output/xxx" \
   --skip-a4-outpaint --skip-remove-text --genre 商店日常 --moxingpt --moxingemini
 
-# 导航栏icon 专用管线（跳过 Step0a/0b/Step1，零额外 API 消耗）
-py scripts/compose_nav_icon.py --subject "input/uploads/current.png" \
-  -P "艺术字描述" -o "output/导航栏icon.png"
+# 手机商店悬浮窗 专用管线（跳过 Step0a/0b/Step1，零额外 API 消耗）
+py scripts/compose_floating_window.py --subject "input/uploads/current.png" \
+  -P "艺术字描述" -o "output/手机商店悬浮窗.png"
 ```
 
 活动长图相关命令：
@@ -997,6 +997,38 @@ bg.png → A4(composite + API fill) → tianchong.png (2048×512) → wide_from_
 | 中文模型名 URL 报错 | `'ascii' codec can't encode` | Gemini 原生 URL 需 `quote()`，或改用 chat/completions |
 | 直接调用 wide_from_fill 时 ascii 崩溃 | `'ascii' codec can't encode character '\u6b21'` | 未通过 `run_all_presets.py` 入口，BANNER_IMAGE_BACKEND 被设为 `gemini`（默认），走原生 generateContent URL，中文模型名 `[次]` 无法编码。必须（1）设置 `BANNER_IMAGE_BACKEND=moxingpt` 让编辑走 chat/completions（JSON body 无编码限制）；（2）同时设置 `GEMINI_API_KEY` + `GOOGLE_GEMINI_BASE_URL` 为 moxingemini 凭证。或者直接走 `run_all_presets.py --moxingpt --moxingemini` 入口（自动完成以上两步）|
 | `GEMINI_MODEL` 未生效 | 日志显示错误模型 | `.env` 有旧值覆盖了 `setdefault`，删掉或改用专属变量 |
+
+### 2026-07-15 — 导航栏 icon 96×96 合成避坑（外部文件引用 + 配置不一致 + -g 空格）
+
+**问题**：用户从 Eagle 素材库 / 桌面拖图到对话框，image-saver 检测到但跳过保存；手动查 `input/uploads/` 找不到图；`-g 手机商店导航栏icon96X96` 路由不到对应 preset。
+
+**根因分析**：
+
+| # | 问题 | 排查结论 |
+|---|------|---------|
+| 1 | **外部文件引用不被保存** | 从 Eagle/桌面拖图到对话框时，插件日志打印 `matched! isFile=true` 但跳过复制。图只存在于外部路径（如 `D:\张闯\eagle\...\po04.png`），未复制到项目 `input/`。需手动 `Copy-Item`。 |
+| 2 | **配置实际行为不一致** | `.opencode/image-saver.config.json` 写 `inputDir: "input/uploads"`，AGENTS.md 写 `input`，实际保存到 `input/` 根目录（`input/image.png`）。三方不一致，查图时先看 `input/uploads/` 发现空，误导判断。 |
+| 3 | **`-g` 参数空格/大小写敏感** | `手机商店导航栏icon96X96`（无空格、X 大写）≠ GENRE_PRESETS 中的 `手机商店导航栏icon 96x96`（有空格、x 小写）。不匹配时返回空列表，路由静默失败。 |
+| 4 | **`compose_nav_icon.py` 重跑需清 `_work_nav_icon`** | 上次运行产出 `output/_work_nav_icon/title_art.png` 未清理，第二次运行时 `raw_path.rename(out_path)` 盖不过已存在的同名文件 → `FileExistsError`。 |
+
+**改动**：
+
+| # | 范围 | 内容 |
+|---|------|------|
+| 1 | `.opencode/image-saver.config.json` | `inputDir` 改为 `"input"`（与实际保存路径对齐） |
+| 2 | `AGENTS.md` | 新增「导航栏 icon 96×96 避坑指南」经验章节 |
+| 3 | `docs/图片处理说明.md` | 补充外部文件引用的已知问题与手动复制方案 |
+
+**经验规则**：
+
+| # | 规则 | 说明 |
+|---|------|------|
+| N1 | **拖图后先验证** | 粘贴图片后立即检查 `input/image.png` 是否更新（`Get-Item -LiteralPath "input/image.png" \| Select-Object Length, LastWriteTime`），若大小未变化则手动 `Copy-Item` 外部路径覆盖 |
+| N2 | **查图看 `input/image.png` 而非 `uploads/`** | image-saver 实际保存到 `input/` 根目录；`uploads/` 是历史存档，不包含最新粘贴 |
+| N3 | **`-g` 用空格 + 小写 x** | 正确格式：`-g "手机商店导航栏icon 96x96"`，可加容错别名：在 spec.py GENRE_PRESETS 追加 `"手机商店导航栏icon96X96"` 等变体 |
+| N4 | **单 preset 走专用脚本** | 导航栏 icon 用 `compose_nav_icon.py --subject` 直接合成，走 `run_full_with_custom_prompt.py` 会浪费 Step1 API |
+| N5 | **重跑前清理中间产物** | `Remove-Item -LiteralPath "output\_work_nav_icon" -Recurse -Force` |
+| N6 | **`input/uploads/current.png` 不可信** | 该文件时间戳极旧（2025/12），不是当前图片；当前图片在 `input/image.png` |
 
 ### 核心教训（2026-07-09 会话，调试专题长图白条踩坑全记录）
 

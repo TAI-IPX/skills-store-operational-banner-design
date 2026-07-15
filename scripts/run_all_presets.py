@@ -220,8 +220,8 @@ def main():
     if getattr(args, "moxingemini", False) and not getattr(args, "packy7s", False) and not getattr(args, "moxingpt", False):
         env["GOOGLE_GEMINI_BASE_URL"] = os.environ.get("MOXINGEMINI_BASE_URL", "https://www.moxin.studio").strip()
         env["GEMINI_API_KEY"] = os.environ.get("MOXINGEMINI_API_KEY", "")
-        env.setdefault("GEMINI_MODEL", env.get("MOXINGEMINI_MODEL", "[特价次卡]gemini-3.1-pro-preview,[次]gemini-3-pro-image"))
-        env.setdefault("GEMINI_VISION_MODEL", env.get("MOXINGEMINI_VISION_MODEL", "[特价次卡]gemini-3.1-pro-preview,[特价次卡]gemini-3.1-pro-preview-think,[特价次卡]gemini-2.5-pro"))
+        env.setdefault("GEMINI_MODEL", env.get("MOXINGEMINI_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image"))
+        env.setdefault("GEMINI_VISION_MODEL", env.get("MOXINGEMINI_VISION_MODEL", "[次]gemini-3.1-flash-image-preview,[次]gemini-3-pro-image-preview"))
         env["BANNER_IMAGE_BACKEND"] = "gemini"
     if getattr(args, "xingchengemini1", False) and not getattr(args, "packy7s", False) and not getattr(args, "xingchengpt", False):
         env["GOOGLE_GEMINI_BASE_URL"] = os.environ.get("XINGCHENGEMINI1_BASE_URL", os.environ.get("XINGCHENGEMINI_BASE_URL", "https://api.centos.hk")).strip()
@@ -603,8 +603,28 @@ def main():
                 else (str(logo_path) if logo_path else None)
             )
 
-            # shop_mobile_nav_icon 走专用合成管线（圆形+主体+艺术字），不走标准 compose
-            if name == "shop_mobile_nav_icon":
+            # shop_mobile_floating_window 走专用合成管线（圆形+主体+艺术字），不走标准 compose
+            if name == "shop_mobile_floating_window":
+                print(f"  {name} ({w}x{h}) -> {out_path.name} [专用管线: 圆形+主体+艺术字]")
+                cmd_nav = [
+                    PYTHON_EXE,
+                    str(ROOT / "scripts" / "compose_floating_window.py"),
+                    "--subject", str(image_path),
+                    "--output", str(out_path.resolve()),
+                ]
+                if getattr(args, "text_art", None):
+                    cmd_nav.extend(["--text-art", str(args.text_art)])
+                if getattr(args, "text_art_prompt", None):
+                    cmd_nav.extend(["--text-art-prompt", args.text_art_prompt])
+                r_nav = subprocess.run(cmd_nav, cwd=scripts_dir, env=env)
+                if r_nav.returncode != 0:
+                    print(f"    compose_floating_window 失败: {name}", flush=True)
+                resolved, _ = _resolve_output_path(str(out_path))
+                print(f"    -> {resolved}")
+                continue
+
+            # shop_mobile_nav_icon_96 走专用合成管线（圆形68x68+主体+艺术字），不走标准 compose
+            if name == "shop_mobile_nav_icon_96":
                 print(f"  {name} ({w}x{h}) -> {out_path.name} [专用管线: 圆形+主体+艺术字]")
                 cmd_nav = [
                     PYTHON_EXE,
