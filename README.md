@@ -36,38 +36,6 @@ cp .env.example .env
 # 编辑 .env，填入 GEMINI_API_KEY 等密钥
 ```
 
-### 使用
-
-```bash
-# 完整流程：处理图片 + 叠字
-python scripts/run_banner.py -i input/your_image.png -m "主标题" -s "副标题"
-
-# 仅叠字（跳过图片处理）
-python scripts/run_banner_compose_only.py -i output/step1_prepared_background.png -m "主标题" -s "副标题"
-
-# 自定义描述生成背景
-python scripts/run_full_with_custom_prompt.py
-
-# 仅主副标题，自动生成描述（prompt-engine 完整管线）
-python scripts/run_full_with_custom_prompt.py -m "主标题" -s "副标题" --prompt-engine
-
-# 商店移动端日常（独立管线）
-python scripts/run_full_with_custom_prompt.py -g 商店移动端日常 -m "主标题" -s "副标题" --description "描述..."
-
-# 查看帮助
-python scripts/run_banner.py --help
-```
-
-在 Cursor 中使用时，Agent 会自动读取 `AGENTS.md` 中的技能表；或通过 `openskills read <skill-name>` 加载对应技能。
-
-## 图片输入
-
-在 OpenCode 对话框粘贴图片后，image-saver 插件自动保存到 `input/uploads/`：
-- `current.png` — 最新图片固定路径
-- `<时间戳>.png` — 历史存档
-- `uploads_index.json` — 上传记录索引
-
-遇到图片无法提取时，直接读取 `input/uploads_index.json` 获取最新路径，或使用 `input/uploads/current.png`。
 
 ## 项目结构
 
@@ -97,9 +65,3 @@ python scripts/run_banner.py --help
 └── output/                  # 输出结果
 ```
 
-## 文档
-
-- [流程与规则](docs/流程与规则.md) - 主流程、安全区、Step1/Step2 规则
-- [AI 协作规范](docs/AI协作规范.md) - Prompt 库、参考图、运营插画习惯
-- [文生图路径说明](docs/文生图路径说明.md)
-- [对话框内完成全流程说明](docs/对话框内完成全流程说明.md)
