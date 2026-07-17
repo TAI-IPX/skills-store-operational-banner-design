@@ -94,3 +94,6 @@ input/*
 !input/.gitkeep
 output/*
 !output/.gitkeep
+
+# OpenCode 本地配置
+.opencode/
